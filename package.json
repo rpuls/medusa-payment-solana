@@ -1,7 +1,8 @@
 {
   "name": "medusa-payment-solana",
+  "author": "Rasmus Puls",
   "version": "0.1.0",
-  "description": "Solana cryptocurrency payment provider for Medusa.js 2.0",
+  "description": "Solana crypto currency payment provider for MedusaJS 2.0",
   "main": "dist/index.js",
   "files": [
     "dist"
@@ -11,7 +12,8 @@
     "test": "jest",
     "prepare": "cross-env NODE_ENV=production npm run build",
     "watch": "tsc --watch",
-    "simulate-payment": "node scripts/simulate-payment.js"
+    "simulate-payment": "node scripts/simulate-payment.js",
+    "rebuild": "npm rebuild"
   },
   "keywords": [
     "medusa",
@@ -20,7 +22,6 @@
     "solana",
     "cryptocurrency"
   ],
-  "author": "",
   "license": "MIT",
   "dependencies": {
     "@medusajs/framework": "^2.0.0",

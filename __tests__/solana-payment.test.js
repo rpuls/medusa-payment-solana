@@ -1,9 +1,22 @@
-import SolanaPaymentProviderService from "../src/modules/solana-payment/service";
-import SolanaClient from "../src/modules/solana-payment/solana-client";
-import { generatePaymentId } from "../src/modules/solana-payment/utils";
+const SolanaPaymentProviderService = require("../src/modules/solana-payment/service").default;
+const { generatePaymentId } = require("../src/modules/solana-payment/utils");
 
 // Mock the SolanaClient
-jest.mock("../src/modules/solana-payment/solana-client");
+jest.mock("../src/modules/solana-payment/solana-client", () => {
+  return {
+    __esModule: true,
+    default: jest.fn().mockImplementation(() => ({
+      convertToSol: jest.fn().mockImplementation((amount, currency) => {
+        return currency === "USD" ? amount * 0.05 : amount * 0.055;
+      }),
+      getWalletAddress: jest.fn().mockReturnValue("2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk"),
+      checkPayment: jest.fn().mockResolvedValue(false),
+    })),
+  };
+});
+
+// Get the mocked constructor
+const SolanaClient = require("../src/modules/solana-payment/solana-client").default;
 
 describe("SolanaPaymentProviderService", () => {
   let solanaPaymentProvider;
@@ -21,7 +34,7 @@ describe("SolanaPaymentProviderService", () => {
       convertToSol: jest.fn().mockImplementation((amount, currency) => {
         return currency === "USD" ? amount * 0.05 : amount * 0.055;
       }),
-      getWalletAddress: jest.fn().mockReturnValue("testWalletAddress"),
+      getWalletAddress: jest.fn().mockReturnValue("2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk"),
       checkPayment: jest.fn().mockResolvedValue(false),
     }));
     
@@ -29,7 +42,7 @@ describe("SolanaPaymentProviderService", () => {
     solanaPaymentProvider = new SolanaPaymentProviderService(
       { logger: mockLogger },
       {
-        walletAddress: "testWalletAddress",
+        walletAddress: "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk",
         rpcUrl: "https://api.testnet.solana.com",
       }
     );
@@ -58,7 +71,7 @@ describe("SolanaPaymentProviderService", () => {
       expect(result).toHaveProperty("id", "test_payment_id");
       expect(result).toHaveProperty("data");
       expect(result.data).toHaveProperty("sol_amount", 5); // 100 USD * 0.05 = 5 SOL
-      expect(result.data).toHaveProperty("wallet_address", "testWalletAddress");
+      expect(result.data).toHaveProperty("wallet_address", "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk");
       expect(result.data).toHaveProperty("status", "pending");
       expect(result.data).toHaveProperty("description");
       expect(mockLogger.info).toHaveBeenCalled();
@@ -72,7 +85,7 @@ describe("SolanaPaymentProviderService", () => {
         amount: 100,
         currency_code: "USD",
         sol_amount: 5,
-        wallet_address: "testWalletAddress",
+        wallet_address: "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk",
         status: "pending",
         created_at: new Date(),
         updated_at: new Date(),
@@ -90,30 +103,24 @@ describe("SolanaPaymentProviderService", () => {
     });
     
     it("should return authorized status when payment is received", async () => {
-      // Mock the checkPayment method to return true
-      SolanaClient.mockImplementation(() => ({
+      // Create a mock instance with checkPayment returning true
+      const mockSolanaClient = {
         convertToSol: jest.fn().mockImplementation((amount, currency) => {
           return currency === "USD" ? amount * 0.05 : amount * 0.055;
         }),
-        getWalletAddress: jest.fn().mockReturnValue("testWalletAddress"),
+        getWalletAddress: jest.fn().mockReturnValue("2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk"),
         checkPayment: jest.fn().mockResolvedValue(true),
-      }));
+      };
       
-      // Recreate the payment provider with the new mock
-      solanaPaymentProvider = new SolanaPaymentProviderService(
-        { logger: mockLogger },
-        {
-          walletAddress: "testWalletAddress",
-          rpcUrl: "https://api.testnet.solana.com",
-        }
-      );
+      // Replace the solanaClient in the payment provider
+      solanaPaymentProvider.solanaClient = mockSolanaClient;
       
       const paymentDetails = {
         id: "test_payment_id",
         amount: 100,
         currency_code: "USD",
         sol_amount: 5,
-        wallet_address: "testWalletAddress",
+        wallet_address: "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk",
         status: "pending",
         created_at: new Date(),
         updated_at: new Date(),
@@ -139,7 +146,7 @@ describe("SolanaPaymentProviderService", () => {
         amount: 100,
         currency_code: "USD",
         sol_amount: 5,
-        wallet_address: "testWalletAddress",
+        wallet_address: "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk",
         status: "authorized",
         created_at: new Date(),
         updated_at: new Date(),
@@ -164,7 +171,7 @@ describe("SolanaPaymentProviderService", () => {
         amount: 100,
         currency_code: "USD",
         sol_amount: 5,
-        wallet_address: "testWalletAddress",
+        wallet_address: "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk",
         status: "pending",
         created_at: new Date(),
         updated_at: new Date(),
@@ -189,7 +196,7 @@ describe("SolanaPaymentProviderService", () => {
         amount: 100,
         currency_code: "USD",
         sol_amount: 5,
-        wallet_address: "testWalletAddress",
+        wallet_address: "2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk",
         status: "pending",
         created_at: new Date(),
         updated_at: new Date(),

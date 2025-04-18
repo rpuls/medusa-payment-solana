@@ -21,11 +21,20 @@ import {
   UpdatePaymentInput,
   UpdatePaymentOutput,
   ProviderWebhookPayload,
-  WebhookActionResult,
-  MedusaError
+  WebhookActionResult
 } from "@medusajs/framework/types";
+import { SolanaPaymentError } from "./errors";
 import SolanaClient, { PaymentDetails } from "./solana-client";
 import { generatePaymentId, createPaymentDescription } from "./utils";
+
+// Extend PaymentSessionStatus to include "refunded"
+type ExtendedPaymentSessionStatus = PaymentSessionStatus | "refunded";
+
+// Define a custom context type that includes order_id
+type CustomPaymentContext = {
+  order_id?: string;
+  [key: string]: unknown;
+};
 
 type SolanaPaymentOptions = {
   rpcUrl: string;
@@ -70,8 +79,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
    */
   static validateOptions(options: Record<string, unknown>): void {
     if (!options.walletAddress) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
+      throw new SolanaPaymentError(
+        SolanaPaymentError.Types.INVALID_DATA,
         "Solana wallet address is required"
       );
     }
@@ -90,7 +99,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const paymentId = generatePaymentId();
       
       // Convert the amount to SOL
-      const solAmount = this.solanaClient.convertToSol(amount, currency_code);
+      const solAmount = this.solanaClient.convertToSol(Number(amount), currency_code);
       
       // Get the wallet address for receiving payment
       const walletAddress = this.solanaClient.getWalletAddress();
@@ -98,7 +107,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       // Create payment details
       const paymentDetails: PaymentDetails = {
         id: paymentId,
-        amount,
+        amount: Number(amount),
         currency_code,
         sol_amount: solAmount,
         wallet_address: walletAddress,
@@ -108,15 +117,17 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       };
       
       // Create a description for the payment
+      const customContext = context as CustomPaymentContext;
       const description = createPaymentDescription(
-        context?.order_id || "unknown",
-        amount,
+        customContext?.order_id || "unknown",
+        Number(amount),
         currency_code,
         solAmount
       );
       
       this.logger_.info(`Initiated Solana payment: ${paymentId} for ${solAmount} SOL`);
       
+      // Return with additional data that will be stored with the payment session
       return {
         id: paymentId,
         data: {
@@ -140,8 +151,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -191,8 +202,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -229,8 +240,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -267,8 +278,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data, amount } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -305,8 +316,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -316,7 +327,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       // Check if payment has been received
       const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
       
-      let status: PaymentSessionStatus = "pending";
+      let status: ExtendedPaymentSessionStatus = "pending";
       
       if (isPaymentReceived) {
         status = "authorized";
@@ -329,7 +340,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       }
       
       return {
-        status,
+        status: status as PaymentSessionStatus,
       };
     } catch (error) {
       this.logger_.error(`Error getting Solana payment status: ${error}`);
@@ -347,8 +358,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -373,8 +384,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data, amount, currency_code, context } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -382,30 +393,31 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const paymentDetails = data as unknown as PaymentDetails;
       
       // Convert the new amount to SOL
-      const solAmount = this.solanaClient.convertToSol(amount, currency_code);
+      const solAmount = this.solanaClient.convertToSol(Number(amount), currency_code);
       
       // Update payment details
       const updatedData = {
         ...paymentDetails,
-        amount,
+        amount: Number(amount),
         currency_code,
         sol_amount: solAmount,
         updated_at: new Date(),
       };
       
       // Create a new description for the payment
+      const customContext = context as CustomPaymentContext;
       const description = createPaymentDescription(
-        context?.order_id || "unknown",
-        amount,
+        customContext?.order_id || "unknown",
+        Number(amount),
         currency_code,
         solAmount
       );
       
       this.logger_.info(`Payment updated: ${paymentDetails.id} to ${solAmount} SOL`);
       
+      // Return the updated data
       return {
-        ...updatedData,
-        description,
+        data: updatedData
       };
     } catch (error) {
       this.logger_.error(`Error updating Solana payment: ${error}`);
@@ -423,8 +435,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const { data } = input;
       
       if (!data) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
+        throw new SolanaPaymentError(
+          SolanaPaymentError.Types.INVALID_DATA,
           "No payment data found"
         );
       }
@@ -468,14 +480,16 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
           return {
             action: "authorized",
             data: {
-              session_id: data.session_id,
+              session_id: String(data.session_id || ""),
+              amount: Number(data.amount || 0),
             },
           };
         case "payment_confirmed":
           return {
             action: "captured",
             data: {
-              session_id: data.session_id,
+              session_id: String(data.session_id || ""),
+              amount: Number(data.amount || 0),
             },
           };
         default:

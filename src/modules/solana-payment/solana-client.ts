@@ -106,8 +106,11 @@ export class SolanaClient {
 
         // Check if the amount matches what we expect
         // This is a simplified check - in production you would need more robust verification
-        const lamports = transaction.meta?.postBalances[0] - transaction.meta?.preBalances[0];
-        if (lamports) {
+        const postBalance = transaction.meta?.postBalances?.[0] || 0;
+        const preBalance = transaction.meta?.preBalances?.[0] || 0;
+        const lamports = postBalance - preBalance;
+        
+        if (lamports > 0) {
           const solAmount = lamports / LAMPORTS_PER_SOL;
           
           // Allow a small margin of error (0.5%) to account for transaction fees
