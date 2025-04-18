@@ -1,0 +1,41 @@
+{
+  "name": "medusa-payment-solana",
+  "version": "0.1.0",
+  "description": "Solana cryptocurrency payment provider for Medusa.js 2.0",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "prepare": "cross-env NODE_ENV=production npm run build",
+    "watch": "tsc --watch",
+    "simulate-payment": "node scripts/simulate-payment.js"
+  },
+  "keywords": [
+    "medusa",
+    "medusa-plugin",
+    "payment",
+    "solana",
+    "cryptocurrency"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@medusajs/framework": "^2.0.0",
+    "@solana/web3.js": "^1.98.0",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/qrcode": "^1.5.5",
+    "cross-env": "^7.0.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "@medusajs/framework": "^2.0.0"
+  }
+}

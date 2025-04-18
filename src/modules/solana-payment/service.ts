@@ -1,0 +1,495 @@
+import { AbstractPaymentProvider } from "@medusajs/framework/utils";
+import { 
+  Logger,
+  AuthorizePaymentInput,
+  AuthorizePaymentOutput,
+  CancelPaymentInput,
+  CancelPaymentOutput,
+  CapturePaymentInput,
+  CapturePaymentOutput,
+  DeletePaymentInput,
+  DeletePaymentOutput,
+  GetPaymentStatusInput,
+  GetPaymentStatusOutput,
+  InitiatePaymentInput,
+  InitiatePaymentOutput,
+  PaymentSessionStatus,
+  RefundPaymentInput,
+  RefundPaymentOutput,
+  RetrievePaymentInput,
+  RetrievePaymentOutput,
+  UpdatePaymentInput,
+  UpdatePaymentOutput,
+  ProviderWebhookPayload,
+  WebhookActionResult,
+  MedusaError
+} from "@medusajs/framework/types";
+import SolanaClient, { PaymentDetails } from "./solana-client";
+import { generatePaymentId, createPaymentDescription } from "./utils";
+
+type SolanaPaymentOptions = {
+  rpcUrl: string;
+  walletAddress: string;
+  walletKeypairPath?: string;
+  paymentPollingInterval?: number;
+};
+
+class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPaymentOptions> {
+  static identifier = "solana";
+  
+  protected logger_: Logger;
+  protected options_: SolanaPaymentOptions;
+  protected solanaClient: SolanaClient;
+  protected paymentPollingInterval: number;
+
+  constructor(
+    container: { logger: Logger },
+    options: SolanaPaymentOptions
+  ) {
+    super(container, options);
+
+    this.logger_ = container.logger;
+    this.options_ = options;
+    
+    // Default to Solana testnet if not specified
+    const rpcUrl = options.rpcUrl || "https://api.testnet.solana.com";
+    
+    // Initialize Solana client
+    this.solanaClient = new SolanaClient({
+      rpcUrl,
+      walletAddress: options.walletAddress,
+      walletKeypairPath: options.walletKeypairPath,
+    });
+    
+    // Set payment polling interval (default: 30 seconds)
+    this.paymentPollingInterval = options.paymentPollingInterval || 30000;
+  }
+
+  /**
+   * Validate the options provided to the payment provider
+   */
+  static validateOptions(options: Record<string, unknown>): void {
+    if (!options.walletAddress) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Solana wallet address is required"
+      );
+    }
+  }
+
+  /**
+   * Initialize a new payment session
+   */
+  async initiatePayment(
+    input: InitiatePaymentInput
+  ): Promise<InitiatePaymentOutput> {
+    try {
+      const { amount, currency_code, context } = input;
+      
+      // Generate a unique payment ID
+      const paymentId = generatePaymentId();
+      
+      // Convert the amount to SOL
+      const solAmount = this.solanaClient.convertToSol(amount, currency_code);
+      
+      // Get the wallet address for receiving payment
+      const walletAddress = this.solanaClient.getWalletAddress();
+      
+      // Create payment details
+      const paymentDetails: PaymentDetails = {
+        id: paymentId,
+        amount,
+        currency_code,
+        sol_amount: solAmount,
+        wallet_address: walletAddress,
+        status: "pending",
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+      
+      // Create a description for the payment
+      const description = createPaymentDescription(
+        context?.order_id || "unknown",
+        amount,
+        currency_code,
+        solAmount
+      );
+      
+      this.logger_.info(`Initiated Solana payment: ${paymentId} for ${solAmount} SOL`);
+      
+      return {
+        id: paymentId,
+        data: {
+          ...paymentDetails,
+          description,
+        },
+      };
+    } catch (error) {
+      this.logger_.error(`Error initiating Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Authorize a payment
+   */
+  async authorizePayment(
+    input: AuthorizePaymentInput
+  ): Promise<AuthorizePaymentOutput> {
+    try {
+      const { data } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      // Check if payment has been received
+      const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
+      
+      if (isPaymentReceived) {
+        this.logger_.info(`Payment authorized: ${paymentDetails.id}`);
+        
+        // Update payment status
+        const updatedData = {
+          ...paymentDetails,
+          status: "authorized" as const,
+          updated_at: new Date(),
+        };
+        
+        return {
+          status: "authorized",
+          data: updatedData,
+        };
+      }
+      
+      // Payment not received yet
+      return {
+        status: "pending",
+        data: {
+          ...paymentDetails,
+          updated_at: new Date(),
+        },
+      };
+    } catch (error) {
+      this.logger_.error(`Error authorizing Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Capture an authorized payment
+   */
+  async capturePayment(
+    input: CapturePaymentInput
+  ): Promise<CapturePaymentOutput> {
+    try {
+      const { data } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      // For Solana payments, capture is essentially just marking the payment as captured
+      // since the funds are already in our wallet once authorized
+      
+      this.logger_.info(`Payment captured: ${paymentDetails.id}`);
+      
+      const updatedData = {
+        ...paymentDetails,
+        status: "captured" as const,
+        updated_at: new Date(),
+      };
+      
+      return {
+        data: updatedData,
+      };
+    } catch (error) {
+      this.logger_.error(`Error capturing Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a payment
+   */
+  async cancelPayment(
+    input: CancelPaymentInput
+  ): Promise<CancelPaymentOutput> {
+    try {
+      const { data } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      // For Solana, we can only mark the payment as canceled
+      // Actual refund would need to be handled separately if payment was already received
+      
+      this.logger_.info(`Payment canceled: ${paymentDetails.id}`);
+      
+      const updatedData = {
+        ...paymentDetails,
+        status: "canceled" as const,
+        updated_at: new Date(),
+      };
+      
+      return {
+        data: updatedData,
+      };
+    } catch (error) {
+      this.logger_.error(`Error canceling Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Refund a captured payment
+   */
+  async refundPayment(
+    input: RefundPaymentInput
+  ): Promise<RefundPaymentOutput> {
+    try {
+      const { data, amount } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      // For Solana, refunds would need to be handled manually
+      // Here we just mark the payment as refunded
+      
+      this.logger_.info(`Payment refund initiated: ${paymentDetails.id} for ${amount}`);
+      
+      const updatedData = {
+        ...paymentDetails,
+        status: "refunded" as const,
+        updated_at: new Date(),
+      };
+      
+      return {
+        data: updatedData,
+      };
+    } catch (error) {
+      this.logger_.error(`Error refunding Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the status of a payment
+   */
+  async getPaymentStatus(
+    input: GetPaymentStatusInput
+  ): Promise<GetPaymentStatusOutput> {
+    try {
+      const { data } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      // Check if payment has been received
+      const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
+      
+      let status: PaymentSessionStatus = "pending";
+      
+      if (isPaymentReceived) {
+        status = "authorized";
+      } else if (paymentDetails.status === "captured") {
+        status = "captured";
+      } else if (paymentDetails.status === "canceled") {
+        status = "canceled";
+      } else if (paymentDetails.status === "refunded") {
+        status = "refunded";
+      }
+      
+      return {
+        status,
+      };
+    } catch (error) {
+      this.logger_.error(`Error getting Solana payment status: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieve payment data
+   */
+  async retrievePayment(
+    input: RetrievePaymentInput
+  ): Promise<RetrievePaymentOutput> {
+    try {
+      const { data } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      // For Solana, we just return the stored payment data
+      // In a more advanced implementation, we might fetch additional data from the blockchain
+      
+      return data;
+    } catch (error) {
+      this.logger_.error(`Error retrieving Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Update payment data
+   */
+  async updatePayment(
+    input: UpdatePaymentInput
+  ): Promise<UpdatePaymentOutput> {
+    try {
+      const { data, amount, currency_code, context } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      // Convert the new amount to SOL
+      const solAmount = this.solanaClient.convertToSol(amount, currency_code);
+      
+      // Update payment details
+      const updatedData = {
+        ...paymentDetails,
+        amount,
+        currency_code,
+        sol_amount: solAmount,
+        updated_at: new Date(),
+      };
+      
+      // Create a new description for the payment
+      const description = createPaymentDescription(
+        context?.order_id || "unknown",
+        amount,
+        currency_code,
+        solAmount
+      );
+      
+      this.logger_.info(`Payment updated: ${paymentDetails.id} to ${solAmount} SOL`);
+      
+      return {
+        ...updatedData,
+        description,
+      };
+    } catch (error) {
+      this.logger_.error(`Error updating Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a payment session
+   */
+  async deletePayment(
+    input: DeletePaymentInput
+  ): Promise<DeletePaymentOutput> {
+    try {
+      const { data } = input;
+      
+      if (!data) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "No payment data found"
+        );
+      }
+      
+      const paymentDetails = data as unknown as PaymentDetails;
+      
+      this.logger_.info(`Payment deleted: ${paymentDetails.id}`);
+      
+      // For Solana, we just mark the session as deleted
+      // No actual deletion from the blockchain is possible
+      
+      return {};
+    } catch (error) {
+      this.logger_.error(`Error deleting Solana payment: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Process webhook events
+   * This could be used to handle notifications from a service monitoring the blockchain
+   */
+  async getWebhookActionAndData(
+    payload: ProviderWebhookPayload["payload"]
+  ): Promise<WebhookActionResult> {
+    try {
+      const { data } = payload;
+      
+      // This is a placeholder for handling webhook events
+      // In a real implementation, you might receive notifications from a service
+      // that monitors the blockchain for transactions to your wallet
+      
+      if (!data || !data.type) {
+        return {
+          action: "not_supported",
+        };
+      }
+      
+      switch (data.type) {
+        case "payment_received":
+          return {
+            action: "authorized",
+            data: {
+              session_id: data.session_id,
+            },
+          };
+        case "payment_confirmed":
+          return {
+            action: "captured",
+            data: {
+              session_id: data.session_id,
+            },
+          };
+        default:
+          return {
+            action: "not_supported",
+          };
+      }
+    } catch (error) {
+      this.logger_.error(`Error processing Solana webhook: ${error}`);
+      return {
+        action: "failed",
+      };
+    }
+  }
+}
+
+export default SolanaPaymentProviderService;
