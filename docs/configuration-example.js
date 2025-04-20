@@ -33,6 +33,14 @@ module.exports = {
               
               // Optional: Payment polling interval in milliseconds (defaults to 30000)
               paymentPollingInterval: 30000,
+              
+              // Optional: Currency converter configuration
+              converter: {
+                // Path to custom converter implementation
+                resolve: "./src/converters/my-converter.js",
+                // Optional API key for the converter
+                apiKey: process.env.CONVERTER_API_KEY
+              },
             }
           }
         ]

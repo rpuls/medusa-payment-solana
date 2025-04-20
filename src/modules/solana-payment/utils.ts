@@ -1,4 +1,4 @@
-import * as QRCode from "qrcode";
+import * as QRCode from 'qrcode';
 
 /**
  * Generate a unique payment ID
@@ -21,15 +21,15 @@ export async function generatePaymentQRCode(
   // Create a Solana payment URL
   // Format: solana:<address>?amount=<amount>&reference=<reference>&label=<label>&message=<message>
   const paymentUrl = `solana:${address}?amount=${amount}${
-    description ? `&message=${encodeURIComponent(description)}` : ""
+    description ? `&message=${encodeURIComponent(description)}` : ''
   }`;
 
   // Generate QR code as data URL
   try {
     return await QRCode.toDataURL(paymentUrl);
   } catch (error) {
-    console.error("Error generating QR code:", error);
-    return "";
+    console.error('Error generating QR code:', error);
+    return '';
   }
 }
 

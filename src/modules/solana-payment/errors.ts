@@ -3,14 +3,14 @@
  */
 export class SolanaPaymentError extends Error {
   static Types = {
-    INVALID_DATA: "invalid_data",
-    NOT_FOUND: "not_found",
-    UNAUTHORIZED: "unauthorized",
-    CONFLICT: "conflict",
-    DB_ERROR: "db_error",
-    UNEXPECTED_STATE: "unexpected_state",
-    INVALID_ARGUMENT: "invalid_argument",
-    PAYMENT_ERROR: "payment_error",
+    INVALID_DATA: 'invalid_data',
+    NOT_FOUND: 'not_found',
+    UNAUTHORIZED: 'unauthorized',
+    CONFLICT: 'conflict',
+    DB_ERROR: 'db_error',
+    UNEXPECTED_STATE: 'unexpected_state',
+    INVALID_ARGUMENT: 'invalid_argument',
+    PAYMENT_ERROR: 'payment_error',
   };
 
   type: string;
@@ -20,6 +20,6 @@ export class SolanaPaymentError extends Error {
     super(message);
     this.type = type;
     this.code = code;
-    this.name = "SolanaPaymentError";
+    this.name = 'SolanaPaymentError';
   }
 }

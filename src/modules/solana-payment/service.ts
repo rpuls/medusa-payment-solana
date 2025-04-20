@@ -1,4 +1,4 @@
-import { AbstractPaymentProvider } from "@medusajs/framework/utils";
+import { AbstractPaymentProvider } from '@medusajs/framework/utils';
 import { 
   Logger,
   AuthorizePaymentInput,
@@ -22,13 +22,13 @@ import {
   UpdatePaymentOutput,
   ProviderWebhookPayload,
   WebhookActionResult
-} from "@medusajs/framework/types";
-import { SolanaPaymentError } from "./errors";
-import SolanaClient, { PaymentDetails } from "./solana-client";
-import { generatePaymentId, createPaymentDescription } from "./utils";
+} from '@medusajs/framework/types';
+import { SolanaPaymentError } from './errors';
+import SolanaClient, { PaymentDetails } from './solana-client';
+import { generatePaymentId, createPaymentDescription } from './utils';
 
-// Extend PaymentSessionStatus to include "refunded"
-type ExtendedPaymentSessionStatus = PaymentSessionStatus | "refunded";
+// Extend PaymentSessionStatus to include 'refunded'
+type ExtendedPaymentSessionStatus = PaymentSessionStatus | 'refunded';
 
 // Define a custom context type that includes order_id
 type CustomPaymentContext = {
@@ -44,7 +44,7 @@ type SolanaPaymentOptions = {
 };
 
 class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPaymentOptions> {
-  static identifier = "solana";
+  static identifier = 'solana';
   
   protected logger_: Logger;
   protected options_: SolanaPaymentOptions;
@@ -61,7 +61,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
     this.options_ = options;
     
     // Default to Solana testnet if not specified
-    const rpcUrl = options.rpcUrl || "https://api.testnet.solana.com";
+    const rpcUrl = options.rpcUrl || 'https://api.testnet.solana.com';
     
     // Initialize Solana client
     this.solanaClient = new SolanaClient({
@@ -81,7 +81,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
     if (!options.walletAddress) {
       throw new SolanaPaymentError(
         SolanaPaymentError.Types.INVALID_DATA,
-        "Solana wallet address is required"
+        'Solana wallet address is required'
       );
     }
   }
@@ -111,7 +111,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         currency_code,
         sol_amount: solAmount,
         wallet_address: walletAddress,
-        status: "pending",
+        status: 'pending',
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -119,7 +119,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       // Create a description for the payment
       const customContext = context as CustomPaymentContext;
       const description = createPaymentDescription(
-        customContext?.order_id || "unknown",
+        customContext?.order_id || 'unknown',
         Number(amount),
         currency_code,
         solAmount
@@ -153,7 +153,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -168,19 +168,19 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         // Update payment status
         const updatedData = {
           ...paymentDetails,
-          status: "authorized" as const,
+          status: 'authorized' as const,
           updated_at: new Date(),
         };
         
         return {
-          status: "authorized",
+          status: 'authorized',
           data: updatedData,
         };
       }
       
       // Payment not received yet
       return {
-        status: "pending",
+        status: 'pending',
         data: {
           ...paymentDetails,
           updated_at: new Date(),
@@ -204,7 +204,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -217,7 +217,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
       const updatedData = {
         ...paymentDetails,
-        status: "captured" as const,
+        status: 'captured' as const,
         updated_at: new Date(),
       };
       
@@ -242,7 +242,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -255,7 +255,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
       const updatedData = {
         ...paymentDetails,
-        status: "canceled" as const,
+        status: 'canceled' as const,
         updated_at: new Date(),
       };
       
@@ -280,7 +280,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -293,7 +293,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
       const updatedData = {
         ...paymentDetails,
-        status: "refunded" as const,
+        status: 'refunded' as const,
         updated_at: new Date(),
       };
       
@@ -318,7 +318,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -327,16 +327,16 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       // Check if payment has been received
       const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
       
-      let status: ExtendedPaymentSessionStatus = "pending";
+      let status: ExtendedPaymentSessionStatus = 'pending';
       
       if (isPaymentReceived) {
-        status = "authorized";
-      } else if (paymentDetails.status === "captured") {
-        status = "captured";
-      } else if (paymentDetails.status === "canceled") {
-        status = "canceled";
-      } else if (paymentDetails.status === "refunded") {
-        status = "refunded";
+        status = 'authorized';
+      } else if (paymentDetails.status === 'captured') {
+        status = 'captured';
+      } else if (paymentDetails.status === 'canceled') {
+        status = 'canceled';
+      } else if (paymentDetails.status === 'refunded') {
+        status = 'refunded';
       }
       
       return {
@@ -360,7 +360,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -386,7 +386,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -407,7 +407,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       // Create a new description for the payment
       const customContext = context as CustomPaymentContext;
       const description = createPaymentDescription(
-        customContext?.order_id || "unknown",
+        customContext?.order_id || 'unknown',
         Number(amount),
         currency_code,
         solAmount
@@ -437,7 +437,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,
-          "No payment data found"
+          'No payment data found'
         );
       }
       
@@ -460,7 +460,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
    * This could be used to handle notifications from a service monitoring the blockchain
    */
   async getWebhookActionAndData(
-    payload: ProviderWebhookPayload["payload"]
+    payload: ProviderWebhookPayload['payload']
   ): Promise<WebhookActionResult> {
     try {
       const { data } = payload;
@@ -471,36 +471,36 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
       if (!data || !data.type) {
         return {
-          action: "not_supported",
+          action: 'not_supported',
         };
       }
       
       switch (data.type) {
-        case "payment_received":
+        case 'payment_received':
           return {
-            action: "authorized",
+            action: 'authorized',
             data: {
-              session_id: String(data.session_id || ""),
+              session_id: String(data.session_id || ''),
               amount: Number(data.amount || 0),
             },
           };
-        case "payment_confirmed":
+        case 'payment_confirmed':
           return {
-            action: "captured",
+            action: 'captured',
             data: {
-              session_id: String(data.session_id || ""),
+              session_id: String(data.session_id || ''),
               amount: Number(data.amount || 0),
             },
           };
         default:
           return {
-            action: "not_supported",
+            action: 'not_supported',
           };
       }
     } catch (error) {
       this.logger_.error(`Error processing Solana webhook: ${error}`);
       return {
-        action: "failed",
+        action: 'failed',
       };
     }
   }

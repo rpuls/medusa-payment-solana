@@ -103,9 +103,64 @@ npm test
 
 ## Customization
 
-### Conversion Rates
+### Currency Conversion
 
-By default, the provider uses a fixed conversion rate (1 USD = 0.05 SOL, 1 EUR = 0.055 SOL). In a production environment, you should modify the `convertToSol` method in `solana-client.ts` to fetch real-time conversion rates from an API.
+The payment provider uses a flexible currency conversion system that allows you to implement your own conversion logic. This design was chosen to:
+
+1. Avoid hard dependencies on specific APIs
+2. Allow customization based on your needs
+3. Enable easy integration with your preferred exchange rate provider
+
+#### Implementing a Custom Converter
+
+1. Create a new file for your converter:
+```javascript
+// src/converters/my-converter.js
+class MyConverter {
+  async convertToSol(amount, currencyCode) {
+    // Example using CoinGecko API
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=${currencyCode}`
+    );
+    const data = await response.json();
+    const rate = data.solana[currencyCode.toLowerCase()];
+    return amount / rate;
+  }
+}
+
+module.exports = MyConverter;
+```
+
+2. Update your Medusa config:
+```javascript
+{
+  resolve: "medusa-payment-solana",
+  options: {
+    walletAddress: process.env.SOLANA_ADDRESS,
+    converter: {
+      resolve: "./src/converters/my-converter.js",
+      apiKey: process.env.CONVERTER_API_KEY
+    }
+  }
+}
+```
+
+3. Set any required API keys in your .env file:
+```
+CONVERTER_API_KEY=your_api_key
+```
+
+#### Default Converter
+
+If no custom converter is provided, the provider uses a default converter with fixed rates:
+- 1 USD = 0.0075 SOL
+- 1 EUR = 0.008 SOL
+
+#### Best Practices
+
+- Cache exchange rates to reduce API calls
+- Implement error handling and fallback rates
+- Consider rate limits when choosing an API provider
 
 ### QR Code Generation
 

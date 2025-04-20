@@ -5,14 +5,16 @@ import {
   Transaction,
   SystemProgram,
   Keypair,
-} from "@solana/web3.js";
-import * as fs from "fs";
-import * as path from "path";
+} from '@solana/web3.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { CurrencyConverter, DefaultConverter } from './currency-converter';
 
 export type SolanaClientOptions = {
   rpcUrl: string;
   walletAddress: string;
   walletKeypairPath?: string;
+  converter?: CurrencyConverter;
 };
 
 export type PaymentDetails = {
@@ -21,7 +23,7 @@ export type PaymentDetails = {
   currency_code: string;
   sol_amount: number;
   wallet_address: string;
-  status: "pending" | "authorized" | "captured" | "canceled" | "refunded";
+  status: 'pending' | 'authorized' | 'captured' | 'canceled' | 'refunded';
   created_at: Date;
   updated_at: Date;
 };
@@ -31,27 +33,24 @@ export class SolanaClient {
   private walletAddress: PublicKey;
   private walletKeypair?: Keypair;
   
-  // Placeholder conversion rates - in a real implementation, these would be fetched from an API
-  private conversionRates = {
-    USD: 0.05, // 1 USD = 0.05 SOL
-    EUR: 0.055, // 1 EUR = 0.055 SOL
-  };
+  private converter: CurrencyConverter;
 
   constructor(options: SolanaClientOptions) {
-    this.connection = new Connection(options.rpcUrl, "confirmed");
+    this.connection = new Connection(options.rpcUrl, 'confirmed');
     this.walletAddress = new PublicKey(options.walletAddress);
+    this.converter = options.converter || new DefaultConverter();
 
     // Load wallet keypair if provided (for testing)
     if (options.walletKeypairPath) {
       try {
         const keypairData = fs.readFileSync(
           path.resolve(options.walletKeypairPath),
-          "utf-8"
+          'utf-8'
         );
         const secretKey = Uint8Array.from(JSON.parse(keypairData));
         this.walletKeypair = Keypair.fromSecretKey(secretKey);
       } catch (error) {
-        console.error("Failed to load wallet keypair:", error);
+        console.error('Failed to load wallet keypair:', error);
       }
     }
   }
@@ -59,10 +58,8 @@ export class SolanaClient {
   /**
    * Convert fiat currency amount to SOL
    */
-  convertToSol(amount: number, currencyCode: string): number {
-    const rate = this.conversionRates[currencyCode as keyof typeof this.conversionRates] || 0.05;
-    // TODO: In a production environment, fetch real-time conversion rates from an API
-    return parseFloat((amount * rate).toFixed(9));
+  async convertToSol(amount: number, currencyCode: string): Promise<number> {
+    return this.converter.convertToSol(amount, currencyCode);
   }
 
   /**
@@ -125,7 +122,7 @@ export class SolanaClient {
 
       return false;
     } catch (error) {
-      console.error("Error checking payment:", error);
+      console.error('Error checking payment:', error);
       return false;
     }
   }
@@ -136,7 +133,7 @@ export class SolanaClient {
    */
   async simulatePayment(recipient: string, amount: number): Promise<string | null> {
     if (!this.walletKeypair) {
-      throw new Error("Wallet keypair not available for simulating payment");
+      throw new Error('Wallet keypair not available for simulating payment');
     }
 
     try {
@@ -156,10 +153,10 @@ export class SolanaClient {
         [this.walletKeypair]
       );
 
-      await this.connection.confirmTransaction(signature, "confirmed");
+      await this.connection.confirmTransaction(signature, 'confirmed');
       return signature;
     } catch (error) {
-      console.error("Error simulating payment:", error);
+      console.error('Error simulating payment:', error);
       return null;
     }
   }
