@@ -41,6 +41,10 @@ type SolanaPaymentOptions = {
   walletAddress: string;
   walletKeypairPath?: string;
   paymentPollingInterval?: number;
+  converter?: {
+    resolve: string;
+    apiKey?: string;
+  };
 };
 
 class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPaymentOptions> {
@@ -63,11 +67,18 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
     // Default to Solana testnet if not specified
     const rpcUrl = options.rpcUrl || 'https://api.testnet.solana.com';
     
-    // Initialize Solana client
+    // Initialize Solana client with optional converter
+    let converter;
+    if (options.converter) {
+      const ConverterClass = require(options.converter.resolve);
+      converter = new ConverterClass(options.converter.apiKey);
+    }
+
     this.solanaClient = new SolanaClient({
       rpcUrl,
       walletAddress: options.walletAddress,
       walletKeypairPath: options.walletKeypairPath,
+      converter
     });
     
     // Set payment polling interval (default: 30 seconds)
@@ -99,7 +110,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const paymentId = generatePaymentId();
       
       // Convert the amount to SOL
-      const solAmount = this.solanaClient.convertToSol(Number(amount), currency_code);
+      const solAmount = await this.solanaClient.convertToSol(Number(amount), currency_code);
       
       // Get the wallet address for receiving payment
       const walletAddress = this.solanaClient.getWalletAddress();
@@ -393,7 +404,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const paymentDetails = data as unknown as PaymentDetails;
       
       // Convert the new amount to SOL
-      const solAmount = this.solanaClient.convertToSol(Number(amount), currency_code);
+      const solAmount = await this.solanaClient.convertToSol(Number(amount), currency_code);
       
       // Update payment details
       const updatedData = {
