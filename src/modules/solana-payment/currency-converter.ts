@@ -9,7 +9,7 @@ export class DefaultConverter implements CurrencyConverter {
   };
 
   async convertToSol(amount: number, currencyCode: string): Promise<number> {
-    const rate = this.rates[currencyCode.toLowerCase() as keyof typeof this.rates] || 0.05;
+    const rate = this.rates[currencyCode.toLowerCase() as keyof typeof this.rates];
     return parseFloat((amount * rate).toFixed(9));
   }
 }

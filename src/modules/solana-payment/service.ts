@@ -24,6 +24,8 @@ import {
   WebhookActionResult
 } from '@medusajs/framework/types';
 import { SolanaPaymentError } from './errors';
+import { DefaultConverter } from './currency-converter';
+import { CoinGeckoConverter } from './coingecko-converter';
 import SolanaClient, { PaymentDetails } from './solana-client';
 import { generatePaymentId, createPaymentDescription } from './utils';
 
@@ -41,8 +43,8 @@ type SolanaPaymentOptions = {
   walletAddress: string;
   walletKeypairPath?: string;
   paymentPollingInterval?: number;
+  currencyProvider: 'default' | 'coingecko';
   converter?: {
-    resolve: string;
     apiKey?: string;
   };
 };
@@ -52,8 +54,37 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   
   protected logger_: Logger;
   protected options_: SolanaPaymentOptions;
-  protected solanaClient: SolanaClient;
-  protected paymentPollingInterval: number;
+  protected solanaClient!: SolanaClient;
+  protected paymentPollingInterval!: number;
+
+  private initializeConverter() {
+    if (this.options_.currencyProvider === 'coingecko') {
+      this.logger_.info('Using CoinGecko currency converter');
+      return new CoinGeckoConverter(this.options_.converter?.apiKey);
+    }
+    this.logger_.info('Using default currency converter');
+    return new DefaultConverter();
+  }
+
+  async initialize() {
+    // Default to Solana testnet if not specified
+    const rpcUrl = this.options_.rpcUrl || 'https://api.testnet.solana.com';
+    
+    // Initialize Solana client with optional converter
+    console.log('***************************************************', this.options_);
+    const converter = await this.initializeConverter();
+    console.log('converter', converter);
+
+    this.solanaClient = new SolanaClient({
+      rpcUrl,
+      walletAddress: this.options_.walletAddress,
+      walletKeypairPath: this.options_.walletKeypairPath,
+      converter
+    });
+    
+    // Set payment polling interval (default: 30 seconds)
+    this.paymentPollingInterval = this.options_.paymentPollingInterval || 30000;
+  }
 
   constructor(
     container: { logger: Logger },
@@ -64,25 +95,11 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
     this.logger_ = container.logger;
     this.options_ = options;
     
-    // Default to Solana testnet if not specified
-    const rpcUrl = options.rpcUrl || 'https://api.testnet.solana.com';
-    
-    // Initialize Solana client with optional converter
-    let converter;
-    if (options.converter) {
-      const ConverterClass = require(options.converter.resolve);
-      converter = new ConverterClass(options.converter.apiKey);
-    }
-
-    this.solanaClient = new SolanaClient({
-      rpcUrl,
-      walletAddress: options.walletAddress,
-      walletKeypairPath: options.walletKeypairPath,
-      converter
+    // Initialize the provider asynchronously
+    this.initialize().catch(error => {
+      this.logger_.error(`Error initializing Solana payment provider: ${error}`);
+      throw error;
     });
-    
-    // Set payment polling interval (default: 30 seconds)
-    this.paymentPollingInterval = options.paymentPollingInterval || 30000;
   }
 
   /**

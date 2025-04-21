@@ -105,62 +105,42 @@ npm test
 
 ### Currency Conversion
 
-The payment provider uses a flexible currency conversion system that allows you to implement your own conversion logic. This design was chosen to:
+The payment provider supports two currency conversion options:
 
-1. Avoid hard dependencies on specific APIs
-2. Allow customization based on your needs
-3. Enable easy integration with your preferred exchange rate provider
+1. **Default Converter** - Uses fixed exchange rates:
+   - 1 USD = 0.0075 SOL
+   - 1 EUR = 0.008 SOL
 
-#### Implementing a Custom Converter
+2. **CoinGecko Converter** - Uses real-time rates from CoinGecko API
 
-1. Create a new file for your converter:
-```javascript
-// src/converters/my-converter.js
-class MyConverter {
-  async convertToSol(amount, currencyCode) {
-    // Example using CoinGecko API
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=${currencyCode}`
-    );
-    const data = await response.json();
-    const rate = data.solana[currencyCode.toLowerCase()];
-    return amount / rate;
-  }
-}
+#### Configuration
 
-module.exports = MyConverter;
-```
+To configure the currency converter, update your Medusa config:
 
-2. Update your Medusa config:
 ```javascript
 {
   resolve: "medusa-payment-solana",
   options: {
     walletAddress: process.env.SOLANA_ADDRESS,
-    converter: {
-      resolve: "./src/converters/my-converter.js",
-      apiKey: process.env.CONVERTER_API_KEY
+    currencyConverter: {
+      provider: "coingecko", // or "default"
+      apiKey: process.env.COINGECK_API_KEY // Required for coingecko
     }
   }
 }
 ```
 
-3. Set any required API keys in your .env file:
-```
-CONVERTER_API_KEY=your_api_key
-```
+#### CoinGecko Requirements
 
-#### Default Converter
-
-If no custom converter is provided, the provider uses a default converter with fixed rates:
-- 1 USD = 0.0075 SOL
-- 1 EUR = 0.008 SOL
+When using the CoinGecko provider:
+1. Set the COINGECK_API_KEY in your .env file
+2. Ensure your API key has sufficient permissions for the CoinGecko API
 
 #### Best Practices
 
 - Cache exchange rates to reduce API calls
-- Implement error handling and fallback rates
-- Consider rate limits when choosing an API provider
+- Implement error handling for API failures
+- Monitor API usage to avoid rate limits
 
 ### QR Code Generation
 
