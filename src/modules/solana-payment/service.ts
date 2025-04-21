@@ -1,4 +1,5 @@
 import { AbstractPaymentProvider } from '@medusajs/framework/utils';
+import { PublicKey } from '@solana/web3.js';
 import { 
   Logger,
   AuthorizePaymentInput,
@@ -40,8 +41,7 @@ type CustomPaymentContext = {
 
 type SolanaPaymentOptions = {
   rpcUrl: string;
-  walletAddress: string;
-  walletKeypairPath?: string;
+  passPhrase: string;
   paymentPollingInterval?: number;
   currencyProvider: 'default' | 'coingecko';
   converter?: {
@@ -71,14 +71,11 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
     const rpcUrl = this.options_.rpcUrl || 'https://api.testnet.solana.com';
     
     // Initialize Solana client with optional converter
-    console.log('***************************************************', this.options_);
     const converter = await this.initializeConverter();
-    console.log('converter', converter);
 
     this.solanaClient = new SolanaClient({
       rpcUrl,
-      walletAddress: this.options_.walletAddress,
-      walletKeypairPath: this.options_.walletKeypairPath,
+      mnemonic: this.options_.passPhrase,
       converter
     });
     
@@ -106,10 +103,10 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
    * Validate the options provided to the payment provider
    */
   static validateOptions(options: Record<string, unknown>): void {
-    if (!options.walletAddress) {
+    if (!options.privateKey) {
       throw new SolanaPaymentError(
         SolanaPaymentError.Types.INVALID_DATA,
-        'Solana wallet address is required'
+        'Solana private key is required'
       );
     }
   }
@@ -130,8 +127,9 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const solAmount = await this.solanaClient.convertToSol(Number(amount), currency_code);
       this.logger_.info(`Converted ${amount} ${currency_code} to ${solAmount} SOL`);
       
-      // Get the wallet address for receiving payment
-      const walletAddress = this.solanaClient.getWalletAddress();
+      // Generate a new one-time Solana address using a numeric index derived from payment ID
+      const addressIndex = parseInt(paymentId.replace(/\D/g, ''), 10);
+      const solana_one_time_address = this.solanaClient.generateAddress(addressIndex);
       
       // Create payment details
       const paymentDetails: PaymentDetails = {
@@ -139,7 +137,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         amount: Number(amount),
         currency_code,
         sol_amount: solAmount,
-        wallet_address: walletAddress,
+        solana_one_time_address,
         status: 'pending',
         created_at: new Date(),
         updated_at: new Date(),

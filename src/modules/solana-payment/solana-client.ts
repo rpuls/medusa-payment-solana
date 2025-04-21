@@ -6,14 +6,13 @@ import {
   SystemProgram,
   Keypair,
 } from '@solana/web3.js';
-import * as fs from 'fs';
-import * as path from 'path';
+import { derivePath } from 'ed25519-hd-key';
+import { mnemonicToSeedSync } from 'bip39';
 import { CurrencyConverter, DefaultConverter } from './currency-converter';
 
 export type SolanaClientOptions = {
   rpcUrl: string;
-  walletAddress: string;
-  walletKeypairPath?: string;
+  mnemonic: string;
   converter?: CurrencyConverter;
 };
 
@@ -22,7 +21,7 @@ export type PaymentDetails = {
   amount: number;
   currency_code: string;
   sol_amount: number;
-  wallet_address: string;
+  solana_one_time_address: string;
   status: 'pending' | 'authorized' | 'captured' | 'canceled' | 'refunded';
   created_at: Date;
   updated_at: Date;
@@ -30,29 +29,21 @@ export type PaymentDetails = {
 
 export class SolanaClient {
   private connection: Connection;
-  private walletAddress: PublicKey;
-  private walletKeypair?: Keypair;
-  
+  private walletKeypair: Keypair;
   private converter: CurrencyConverter;
+  protected mnemonic: string;
+
+  private seed: Buffer;
 
   constructor(options: SolanaClientOptions) {
     this.connection = new Connection(options.rpcUrl, 'confirmed');
-    this.walletAddress = new PublicKey(options.walletAddress);
     this.converter = options.converter || new DefaultConverter();
+    this.mnemonic = options.mnemonic;
+    this.seed = mnemonicToSeedSync(this.mnemonic);
 
-    // Load wallet keypair if provided (for testing)
-    if (options.walletKeypairPath) {
-      try {
-        const keypairData = fs.readFileSync(
-          path.resolve(options.walletKeypairPath),
-          'utf-8'
-        );
-        const secretKey = Uint8Array.from(JSON.parse(keypairData));
-        this.walletKeypair = Keypair.fromSecretKey(secretKey);
-      } catch (error) {
-        console.error('Failed to load wallet keypair:', error);
-      }
-    }
+    // Derive master keypair from seed
+    const derived = derivePath("m/44'/501'/0'/0'", this.seed.toString('hex'));
+    this.walletKeypair = Keypair.fromSeed(derived.key);
   }
 
   /**
@@ -65,18 +56,25 @@ export class SolanaClient {
   /**
    * Get the wallet address for receiving payments
    */
-  getWalletAddress(): string {
-    return this.walletAddress.toString();
+
+  generateAddress(index: number): string {
+    const derivationPath = `m/44'/501'/${index}'/0'`;
+    const derivedKey = derivePath(derivationPath, this.seed.toString('hex'));
+    const keypair = Keypair.fromSeed(derivedKey.key.slice(0, 32));
+    return keypair.publicKey.toBase58();
   }
 
   /**
-   * Check if a payment has been received
+   * Check if a payment has been received NOT TESTED!
    */
   async checkPayment(paymentDetails: PaymentDetails): Promise<boolean> {
     try {
+      // Convert one-time address to PublicKey
+      const paymentAddress = new PublicKey(paymentDetails.solana_one_time_address);
+      
       // Get recent transactions to the wallet address
       const signatures = await this.connection.getSignaturesForAddress(
-        this.walletAddress,
+        paymentAddress,
         { limit: 10 }
       );
 
