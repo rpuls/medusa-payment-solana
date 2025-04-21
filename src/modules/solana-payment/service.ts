@@ -111,6 +111,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
       // Convert the amount to SOL
       const solAmount = await this.solanaClient.convertToSol(Number(amount), currency_code);
+      this.logger_.info(`Converted ${amount} ${currency_code} to ${solAmount} SOL`);
       
       // Get the wallet address for receiving payment
       const walletAddress = this.solanaClient.getWalletAddress();
@@ -126,6 +127,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         created_at: new Date(),
         updated_at: new Date(),
       };
+      
+      this.logger_.info('Created payment details:' + JSON.stringify(paymentDetails));
       
       // Create a description for the payment
       const customContext = context as CustomPaymentContext;
