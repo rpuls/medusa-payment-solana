@@ -29,7 +29,7 @@ import SolanaClient, { PaymentDetails } from './solana-client';
 import { generatePaymentId, createPaymentDescription } from './utils';
 
 // Extend PaymentSessionStatus to include 'refunded'
-type ExtendedPaymentSessionStatus = PaymentSessionStatus | 'refunded';
+// type ExtendedPaymentSessionStatus = PaymentSessionStatus | 'refunded';
 
 // Define a custom context type that includes order_id
 type CustomPaymentContext = {
@@ -316,46 +316,56 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   }
 
   /**
-   * Get the status of a payment
-   */
-  async getPaymentStatus(
-    input: GetPaymentStatusInput
-  ): Promise<GetPaymentStatusOutput> {
-    try {
-      const { data } = input;
-      
-      if (!data) {
-        throw new SolanaPaymentError(
-          SolanaPaymentError.Types.INVALID_DATA,
-          'No payment data found'
-        );
-      }
-      
-      const paymentDetails = data as unknown as PaymentDetails;
-      
-      // Check if payment has been received
-      const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
-      
-      let status: ExtendedPaymentSessionStatus = 'pending';
-      
-      if (isPaymentReceived) {
-        status = 'authorized';
-      } else if (paymentDetails.status === 'captured') {
-        status = 'captured';
-      } else if (paymentDetails.status === 'canceled') {
-        status = 'canceled';
-      } else if (paymentDetails.status === 'refunded') {
-        status = 'refunded';
-      }
-      
-      return {
-        status: status as PaymentSessionStatus,
-      };
-    } catch (error) {
-      this.logger_.error(`Error getting Solana payment status: ${error}`);
-      throw error;
+ * Get the status of a payment
+ */
+async getPaymentStatus(
+  input: GetPaymentStatusInput
+): Promise<GetPaymentStatusOutput> {
+  try {
+    const { data } = input;
+    
+    if (!data) {
+      throw new SolanaPaymentError(
+        SolanaPaymentError.Types.INVALID_DATA,
+        'No payment data found'
+      );
     }
+    
+    const paymentDetails = data as PaymentDetails;
+    
+    // If payment is already in a final state, return that state
+    if (paymentDetails.status === 'captured') {
+      return { status: 'captured' };
+    } else if (paymentDetails.status === 'canceled') {
+      return { status: 'canceled' };
+    } else if (paymentDetails.status === 'requires_more') {
+      return { status: 'requires_more' };
+    }
+    
+    // Check if payment has been received
+    const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
+    
+    // Note: the payment is essentially captured already, but the medusa payment flow requires authorization before capturing.
+    if (isPaymentReceived) {
+      return { 
+        status: 'authorized',
+        data: { 
+          ...paymentDetails,
+          verified_at: new Date().toISOString() 
+        }
+      };
+    }
+    
+    // Payment not yet received
+    return { 
+      status: 'pending',
+      data: paymentDetails
+    };
+  } catch (error) {
+    this.logger_.error(`Error getting Solana payment status: ${error}`);
+    throw error;
   }
+}
 
   /**
    * Retrieve payment data

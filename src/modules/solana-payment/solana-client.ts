@@ -1,8 +1,8 @@
+import { PaymentSessionStatus } from '@medusajs/framework/types';
 import {
   Connection,
   PublicKey,
   LAMPORTS_PER_SOL,
-  Transaction,
   SystemProgram,
   Keypair,
 } from '@solana/web3.js';
@@ -28,7 +28,7 @@ export type PaymentDetails = {
   currency_code: string;
   sol_amount: number;
   solana_one_time_address: string;
-  status: 'pending' | 'authorized' | 'captured' | 'canceled' | 'refunded';
+  status: PaymentSessionStatus;
   created_at: Date;
   updated_at: Date;
 };
@@ -78,62 +78,52 @@ export class SolanaClient {
   generateAddress(paymentId: string): string {
     const index = this.paymentIdToBip44Index(paymentId);
     const derivationPath = `m/44'/501'/${index}'/0'`;
-    console.log({ derivationPath, seed: this.seed.toString('hex'), mnemonic: this.mnemonic });
     const derivedKey = derivePath(derivationPath, this.seed.toString('hex'));
     const keypair = Keypair.fromSeed(derivedKey.key.slice(0, 32));
     return keypair.publicKey.toBase58();
   }
 
   /**
-   * Check if a payment has been received NOT TESTED!
+   * Check if a payment has been received
+   * Eventually, this needs to be more sophisticated and return the received amount to; trigger auto refund if overpaid, or sent "requires_more" if underpaid, and update the payment session status accordingly
    */
   async checkPayment(paymentDetails: PaymentDetails): Promise<boolean> {
     try {
-      // Convert one-time address to PublicKey
       const paymentAddress = new PublicKey(paymentDetails.solana_one_time_address);
-      
-      // Get recent transactions to the wallet address
+
+      // Fetch recent signatures
       const signatures = await this.connection.getSignaturesForAddress(
         paymentAddress,
-        { limit: 10 }
+        { limit: 20 }
       );
 
-      // Filter signatures that occurred after the payment was created
+      // Filter signatures after payment creation time
       const relevantSignatures = signatures.filter(
-        (sig) => new Date(sig.blockTime! * 1000) > paymentDetails.created_at
+        (sig) =>
+          sig.blockTime &&
+          new Date(sig.blockTime * 1000) > paymentDetails.created_at
       );
 
-      // Check each transaction to see if it matches our expected payment
       for (const sig of relevantSignatures) {
-        const transaction = await this.connection.getTransaction(sig.signature);
-        
-        if (!transaction) continue;
+        // Fetch transaction details (parsed for easier inspection)
+        const tx = await this.connection.getParsedTransaction(sig.signature, { commitment: 'confirmed' });
+        if (!tx || !tx.meta) continue;
 
-        // Check if this transaction is a transfer to our wallet
-        const transferInstruction = transaction.transaction.message.instructions.find(
-          (ix) => {
-            const programId = transaction.transaction.message.accountKeys[ix.programIdIndex].toString();
-            return programId === SystemProgram.programId.toString();
-          }
-        );
-
-        if (!transferInstruction) continue;
-
-        // Check if the amount matches what we expect
-        // This is a simplified check - in production you would need more robust verification
-        const postBalance = transaction.meta?.postBalances?.[0] || 0;
-        const preBalance = transaction.meta?.preBalances?.[0] || 0;
-        const lamports = postBalance - preBalance;
-        
-        if (lamports > 0) {
-          const solAmount = lamports / LAMPORTS_PER_SOL;
-          
-          // Allow a small margin of error (0.5%) to account for transaction fees
-          const expectedAmount = paymentDetails.sol_amount;
-          const minAcceptable = expectedAmount * 0.995;
-          
-          if (solAmount >= minAcceptable) {
-            return true;
+        // Check each instruction for a matching SystemProgram transfer
+        for (const ix of tx.transaction.message.instructions) {
+          if (
+            'program' in ix &&
+            ix.program === 'system' &&
+            ix.parsed?.type === 'transfer'
+          ) {
+            const info = ix.parsed.info;
+            if (
+              info.destination === paymentAddress.toBase58() &&
+              Number(info.lamports) === paymentDetails.sol_amount * LAMPORTS_PER_SOL
+            ) {
+              // Found a matching payment!
+              return true;
+            }
           }
         }
       }
