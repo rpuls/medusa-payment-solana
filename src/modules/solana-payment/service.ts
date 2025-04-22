@@ -25,8 +25,6 @@ import {
   WebhookActionResult
 } from '@medusajs/framework/types';
 import { SolanaPaymentError } from './errors';
-import { DefaultConverter } from './currency-converter';
-import { CoinGeckoConverter } from './coingecko-converter';
 import SolanaClient, { PaymentDetails } from './solana-client';
 import { generatePaymentId, createPaymentDescription } from './utils';
 
@@ -42,9 +40,8 @@ type CustomPaymentContext = {
 type SolanaPaymentOptions = {
   rpcUrl: string;
   passPhrase: string;
-  paymentPollingInterval?: number;
-  currencyProvider: 'default' | 'coingecko';
   converter?: {
+    provider: 'default' | 'coingecko';
     apiKey?: string;
   };
 };
@@ -55,32 +52,16 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   protected logger_: Logger;
   protected options_: SolanaPaymentOptions;
   protected solanaClient!: SolanaClient;
-  protected paymentPollingInterval!: number;
-
-  private initializeConverter() {
-    if (this.options_.currencyProvider === 'coingecko') {
-      this.logger_.info('Using CoinGecko currency converter');
-      return new CoinGeckoConverter(this.options_.converter?.apiKey);
-    }
-    this.logger_.info('Using default currency converter');
-    return new DefaultConverter();
-  }
 
   async initialize() {
-    // Default to Solana testnet if not specified
-    const rpcUrl = this.options_.rpcUrl || 'https://api.testnet.solana.com';
-    
-    // Initialize Solana client with optional converter
-    const converter = await this.initializeConverter();
-
     this.solanaClient = new SolanaClient({
-      rpcUrl,
+      rpcUrl: this.options_.rpcUrl || 'https://api.testnet.solana.com',
       mnemonic: this.options_.passPhrase,
-      converter
+      currencyConverter: {
+        provider: this.options_.converter?.provider || 'default',
+        apiKey: this.options_.converter?.apiKey
+      }
     });
-    
-    // Set payment polling interval (default: 30 seconds)
-    this.paymentPollingInterval = this.options_.paymentPollingInterval || 30000;
   }
 
   constructor(
@@ -103,10 +84,10 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
    * Validate the options provided to the payment provider
    */
   static validateOptions(options: Record<string, unknown>): void {
-    if (!options.privateKey) {
+    if (!options.passPhrase) {
       throw new SolanaPaymentError(
         SolanaPaymentError.Types.INVALID_DATA,
-        'Solana private key is required'
+        'Solana mnemonic phrase is required'
       );
     }
   }
@@ -127,9 +108,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const solAmount = await this.solanaClient.convertToSol(Number(amount), currency_code);
       this.logger_.info(`Converted ${amount} ${currency_code} to ${solAmount} SOL`);
       
-      // Generate a new one-time Solana address using a numeric index derived from payment ID
-      const addressIndex = parseInt(paymentId.replace(/\D/g, ''), 10);
-      const solana_one_time_address = this.solanaClient.generateAddress(addressIndex);
+  
+      const solana_one_time_address = this.solanaClient.generateAddress(paymentId);
       
       // Create payment details
       const paymentDetails: PaymentDetails = {

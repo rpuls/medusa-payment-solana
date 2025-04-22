@@ -22,7 +22,7 @@ Thank you for your interest in contributing to the Medusa Solana Payment Provide
    ```
 4. Create a `.env` file with your Solana wallet address:
    ```
-   SOLANA_ADDRESS=your_solana_wallet_address
+   SOLANA_MNEMONIC=your_solana_wallet_address
    ```
 5. Build the project:
    ```bash

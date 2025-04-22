@@ -8,11 +8,17 @@ import {
 } from '@solana/web3.js';
 import { derivePath } from 'ed25519-hd-key';
 import { mnemonicToSeedSync } from 'bip39';
+import crypto from 'crypto';
 import { CurrencyConverter, DefaultConverter } from './currency-converter';
+import { CoinGeckoConverter } from './coingecko-converter';
 
 export type SolanaClientOptions = {
   rpcUrl: string;
   mnemonic: string;
+  currencyConverter: {
+    provider: 'default' | 'coingecko';
+    apiKey?: string;
+  };
   converter?: CurrencyConverter;
 };
 
@@ -29,7 +35,6 @@ export type PaymentDetails = {
 
 export class SolanaClient {
   private connection: Connection;
-  private walletKeypair: Keypair;
   private converter: CurrencyConverter;
   protected mnemonic: string;
 
@@ -37,13 +42,19 @@ export class SolanaClient {
 
   constructor(options: SolanaClientOptions) {
     this.connection = new Connection(options.rpcUrl, 'confirmed');
-    this.converter = options.converter || new DefaultConverter();
     this.mnemonic = options.mnemonic;
     this.seed = mnemonicToSeedSync(this.mnemonic);
 
-    // Derive master keypair from seed
-    const derived = derivePath("m/44'/501'/0'/0'", this.seed.toString('hex'));
-    this.walletKeypair = Keypair.fromSeed(derived.key);
+    // Initialize the appropriate currency converter
+    if (options.converter) {
+      this.converter = options.converter;
+    } else {
+      if (options.currencyConverter.provider === 'coingecko') {
+        this.converter = new CoinGeckoConverter(options.currencyConverter.apiKey);
+      } else {
+        this.converter = new DefaultConverter();
+      }
+    }
   }
 
   /**
@@ -54,11 +65,20 @@ export class SolanaClient {
   }
 
   /**
+   * Convert unique payment ID to BIP44 index
+   */
+  paymentIdToBip44Index(paymentId: string): number {
+    const hash = crypto.createHash('sha256').update(paymentId).digest();
+    return hash.readUInt32BE(0); // Use first 4 bytes as unsigned int
+  }
+
+  /**
    * Get the wallet address for receiving payments
    */
-
-  generateAddress(index: number): string {
+  generateAddress(paymentId: string): string {
+    const index = this.paymentIdToBip44Index(paymentId);
     const derivationPath = `m/44'/501'/${index}'/0'`;
+    console.log({ derivationPath, seed: this.seed.toString('hex'), mnemonic: this.mnemonic });
     const derivedKey = derivePath(derivationPath, this.seed.toString('hex'));
     const keypair = Keypair.fromSeed(derivedKey.key.slice(0, 32));
     return keypair.publicKey.toBase58();
@@ -122,40 +142,6 @@ export class SolanaClient {
     } catch (error) {
       console.error('Error checking payment:', error);
       return false;
-    }
-  }
-
-  /**
-   * For testing: Send SOL to simulate a payment
-   * This would only be used in development/testing
-   */
-  async simulatePayment(recipient: string, amount: number): Promise<string | null> {
-    if (!this.walletKeypair) {
-      throw new Error('Wallet keypair not available for simulating payment');
-    }
-
-    try {
-      const recipientPubkey = new PublicKey(recipient);
-      const lamports = amount * LAMPORTS_PER_SOL;
-
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: this.walletKeypair.publicKey,
-          toPubkey: recipientPubkey,
-          lamports,
-        })
-      );
-
-      const signature = await this.connection.sendTransaction(
-        transaction,
-        [this.walletKeypair]
-      );
-
-      await this.connection.confirmTransaction(signature, 'confirmed');
-      return signature;
-    } catch (error) {
-      console.error('Error simulating payment:', error);
-      return null;
     }
   }
 }

@@ -39,10 +39,8 @@ module.exports = defineConfig({
             resolve: "medusa-payment-solana",
             id: "solana",
             options: {
-              walletAddress: process.env.SOLANA_ADDRESS,
+              passPhrase: process.env.SOLANA_MNEMONIC,
               rpcUrl: "https://api.testnet.solana.com", // Use mainnet for production
-              // Optional: Set a custom polling interval (in ms) for checking payments
-              paymentPollingInterval: 30000,
             }
           }
         ]
@@ -52,10 +50,10 @@ module.exports = defineConfig({
 });
 ```
 
-Make sure to set the `SOLANA_ADDRESS` environment variable in your `.env` file:
+Make sure to set the `SOLANA_MNEMONIC` environment variable in your `.env` file:
 
 ```
-SOLANA_ADDRESS=your_solana_wallet_address
+SOLANA_MNEMONIC=
 ```
 
 ## Usage
@@ -121,7 +119,7 @@ To configure the currency converter, update your Medusa config:
 {
   resolve: "medusa-payment-solana",
   options: {
-    walletAddress: process.env.SOLANA_ADDRESS,
+    walletAddress: process.env.SOLANA_MNEMONIC,
     currencyConverter: {
       provider: "coingecko", // or "default"
       apiKey: process.env.COINGECK_API_KEY // Required for coingecko
