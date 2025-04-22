@@ -53,8 +53,29 @@ module.exports = defineConfig({
 Make sure to set the `SOLANA_MNEMONIC` environment variable in your `.env` file:
 
 ```
-SOLANA_MNEMONIC=
+SOLANA_MNEMONIC="word word word word word word word word word word word word"
 ```
+If you don't know what a mnemonic prhase is, or how to generate one you can use script `node scripts/generatePassPhrase.js` to get one. (DONT SHARE WITH ANYONE)
+
+### Scheduled Job Setup
+
+To monitor payments, create a file `src/jobs/check-payments.ts` with:
+
+```typescript
+import { checkPaymentsJob } from 'medusa-payment-solana'
+
+export default checkPaymentsJob
+
+export const config = {
+  name: "check-solana-payments",
+  schedule: "*/5 * * * *", // Runs every 5 minutes
+}
+```
+
+This job will:
+- Check for pending Solana payments
+- Update payment status based on blockchain transactions
+- Automatically authorize and capture successful payments
 
 ## Usage
 
@@ -73,19 +94,6 @@ When a customer reaches the checkout page, they will be able to select "Solana" 
 2. The wallet address to send the payment to
 3. Instructions for completing the payment
 
-## Development
-
-### Build
-
-```bash
-npm run build
-```
-
-### Test
-
-```bash
-npm test
-```
 
 ## How It Works
 
@@ -93,13 +101,12 @@ npm test
 
 2. **Display Payment Details**: The storefront displays the Solana wallet address and the amount in SOL to be paid.
 
-3. **Monitor for Payment**: The provider periodically checks the blockchain for incoming transactions to the specified wallet address.
+3. **Monitor for Payment**: This must be done using a schduled job. Configure the  `import { checkPaymentsJob } from 'medusa-payment-solana'` periodically checks the blockchain for incoming transactions to the specified wallet address.
 
 4. **Authorize Payment**: Once a matching payment is detected, the payment is authorized.
 
-5. **Capture Payment**: The payment is captured, and the order is processed.
+5. **Capture Payment**: The payment is captured immediately when the payment is authorized - solana does not authorize payment, it is a transactional transaction.
 
-## Customization
 
 ### Currency Conversion
 
@@ -142,7 +149,33 @@ When using the CoinGecko provider:
 
 ### QR Code Generation
 
-The provider includes functionality to generate QR codes for payments, but this is not enabled by default. To enable QR codes in your storefront, you can use the `generatePaymentQRCode` function from the `utils.ts` file.
+Here's a simple example of generating a QR code from paymentSession data, in a React Storefront:
+
+```typescript
+import QRCode from "react-qr-code";
+
+const paymentUrl = `solana:${paymentSession.data.solana_one_time_address}?amount=${paymentSession.data.sol_amount}`;
+
+return (
+  <QRCode value={paymentUrl} />
+);
+```
+
+This will generate a QR code that wallets can scan to pre-fill the payment details.
+
+## Development
+
+### Build
+
+```bash
+npm run build
+```
+
+### Test
+
+```bash
+npm test
+```
 
 ## License
 
