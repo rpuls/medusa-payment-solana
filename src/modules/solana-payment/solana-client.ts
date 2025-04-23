@@ -3,7 +3,6 @@ import {
   Connection,
   PublicKey,
   LAMPORTS_PER_SOL,
-  SystemProgram,
   Keypair,
 } from '@solana/web3.js';
 import { derivePath } from 'ed25519-hd-key';
@@ -19,7 +18,6 @@ export type SolanaClientOptions = {
     provider: 'default' | 'coingecko';
     apiKey?: string;
   };
-  converter?: CurrencyConverter;
 };
 
 export type PaymentDetails = {
@@ -46,14 +44,10 @@ export class SolanaClient {
     this.seed = mnemonicToSeedSync(this.mnemonic);
 
     // Initialize the appropriate currency converter
-    if (options.converter) {
-      this.converter = options.converter;
+    if (options.currencyConverter.provider === 'coingecko' && options.currencyConverter.apiKey) {
+      this.converter = new CoinGeckoConverter(options.currencyConverter.apiKey);
     } else {
-      if (options.currencyConverter.provider === 'coingecko') {
-        this.converter = new CoinGeckoConverter(options.currencyConverter.apiKey);
-      } else {
-        this.converter = new DefaultConverter();
-      }
+      this.converter = new DefaultConverter();
     }
   }
 
@@ -90,20 +84,25 @@ export class SolanaClient {
   async checkPayment(paymentDetails: PaymentDetails): Promise<boolean> {
     try {
       const paymentAddress = new PublicKey(paymentDetails.solana_one_time_address);
-
+      
       // Fetch recent signatures
       const signatures = await this.connection.getSignaturesForAddress(
         paymentAddress,
         { limit: 20 }
       );
 
-      // Filter signatures after payment creation time
-      const relevantSignatures = signatures.filter(
-        (sig) =>
-          sig.blockTime &&
-          new Date(sig.blockTime * 1000) > paymentDetails.created_at
-      );
+      // Ensure paymentDetails.created_at is a Date object
+      const createdAtDate = paymentDetails.created_at instanceof Date
+        ? paymentDetails.created_at
+        : new Date(paymentDetails.created_at);
 
+      // Filter signatures after payment creation time
+      const relevantSignatures = signatures.filter((sig) => {
+        if (!sig.blockTime) return false;
+        const blockTimeDate = new Date(sig.blockTime * 1000);
+        return blockTimeDate > createdAtDate;
+      });
+      
       for (const sig of relevantSignatures) {
         // Fetch transaction details (parsed for easier inspection)
         const tx = await this.connection.getParsedTransaction(sig.signature, { commitment: 'confirmed' });

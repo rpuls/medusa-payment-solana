@@ -1,5 +1,4 @@
 import { AbstractPaymentProvider } from '@medusajs/framework/utils';
-import { PublicKey } from '@solana/web3.js';
 import { 
   Logger,
   AuthorizePaymentInput,
@@ -14,7 +13,6 @@ import {
   GetPaymentStatusOutput,
   InitiatePaymentInput,
   InitiatePaymentOutput,
-  PaymentSessionStatus,
   RefundPaymentInput,
   RefundPaymentOutput,
   RetrievePaymentInput,
@@ -40,7 +38,7 @@ type CustomPaymentContext = {
 type SolanaPaymentOptions = {
   rpcUrl: string;
   passPhrase: string;
-  converter?: {
+  currencyConverter?: {
     provider: 'default' | 'coingecko';
     apiKey?: string;
   };
@@ -55,11 +53,11 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
 
   async initialize() {
     this.solanaClient = new SolanaClient({
-      rpcUrl: this.options_.rpcUrl || 'https://api.testnet.solana.com',
+      rpcUrl: this.options_.rpcUrl,
       mnemonic: this.options_.passPhrase,
       currencyConverter: {
-        provider: this.options_.converter?.provider || 'default',
-        apiKey: this.options_.converter?.apiKey
+        provider: this.options_.currencyConverter?.provider || 'default',
+        apiKey: this.options_.currencyConverter?.apiKey
       }
     });
   }
@@ -158,7 +156,6 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   ): Promise<AuthorizePaymentOutput> {
     try {
       const { data } = input;
-      
       if (!data) {
         throw new SolanaPaymentError(
           SolanaPaymentError.Types.INVALID_DATA,

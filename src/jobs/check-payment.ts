@@ -1,49 +1,40 @@
-// src/jobs/check-payments.ts
+import { MedusaError } from '@medusajs/framework/utils'
 import { MedusaContainer } from '@medusajs/framework/types'
 import { Modules } from '@medusajs/framework/utils'
-import SolanaPaymentProviderService from '../modules/solana-payment/service';
+import { capturePaymentWorkflow } from '@medusajs/medusa/core-flows'
 
 export default async function checkPaymentsJob(container: MedusaContainer) {
   const logger = container.resolve('logger')
+  logger.info('Running check payments job')
+  
   const paymentModuleService = container.resolve(Modules.PAYMENT)
-  const solanaPaymentProvider = container.resolve('solana') as SolanaPaymentProviderService;
+  
+  const SolanaPaymentSessions = await paymentModuleService.listPaymentSessions({
+    provider_id: 'pp_solana_solana',
+  })
+  const pendingPaymentSessions = SolanaPaymentSessions.filter(paymentSession => paymentSession.status === 'pending')
 
-  try {
-    // Get pending payment sessions that need status checking
-    const paymentSessions = await paymentModuleService.listPaymentSessions({
-      provider_id: 'pp_solana_solana',
-    })
-
-    // Then filter them by status
-    const pendingPaymentSessions = paymentSessions.filter(paymentSession => paymentSession.status === 'pending')
-
-    logger.info(`Checking status for ${pendingPaymentSessions.length} pending payment sessions`)
-
-    for (const paymentSession of pendingPaymentSessions) {
-      try {
-        const statusResult = await solanaPaymentProvider.getPaymentStatus({ data: paymentSession.data })
-        
-        // Update payment session status based on the API response
-        if (statusResult.status === 'authorized') {
-          // First authorize the payment session
-          const payment = await paymentModuleService.authorizePaymentSession(paymentSession.id, {})
-          
-          // Then capture the payment immediately, since crypto transactions does not distinguish between authorized and captured - they are both authorized and captured when completed
-          if (payment) {
-            await paymentModuleService.capturePayment({
-              payment_id: payment.id,
-            })
-            logger.info(`Payment ${payment.id} successfully captured`)
-          }
-        } else if (statusResult.status === 'error') {
-          // Handle failed payment session
-          // Update the session status accordingly
+  for (const session of pendingPaymentSessions) {
+    try {
+      // Check for authorization status of the payment session. This will trigger authorizePayment in service.ts that checks against the blockchain. Error is thrown if not authorized yet.
+      const payment = await paymentModuleService.authorizePaymentSession(session.id, {})
+      
+      // If we get here, authorization succeeded, so capture the payment
+      await capturePaymentWorkflow(container).run({
+        input: {
+          payment_id: payment.id
         }
-      } catch (err) {
-        logger.error(`Error processing payment session ${paymentSession.id}: ${err}`)
+      })
+      
+      logger.info(`Successfully captured payment for session ${session.id}`)
+    } catch (error) {
+      const medusaError = error as MedusaError;
+      if (medusaError.type === 'not_allowed' && 
+        medusaError.message.includes('was not authorized with the provider')) {
+        logger.info(`Payment session ${session.id} not yet ready for authorization`)
+      } else {
+        logger.error(`Error processing payment session ${session.id}: ${medusaError.message}`)
       }
     }
-  } catch (error) {
-    logger.error(`Error in check payments job: ${error}`)
   }
 }
