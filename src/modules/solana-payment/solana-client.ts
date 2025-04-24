@@ -59,19 +59,20 @@ export class SolanaClient {
   }
 
   /**
-   * Convert unique payment ID to BIP44 index
+   * Convert payment ID to a valid BIP44 index (31-bit for hardened paths)
    */
   paymentIdToBip44Index(paymentId: string): number {
     const hash = crypto.createHash('sha256').update(paymentId).digest();
-    return hash.readUInt32BE(0); // Use first 4 bytes as unsigned int
+    const rawIndex = hash.readUInt32BE(0); // 0 to 4294967295
+    return rawIndex % 0x80000000; // 0 to 2147483647
   }
 
   /**
-   * Get the wallet address for receiving payments
+   * Generate a unique Solana address for a payment
    */
   generateAddress(paymentId: string): string {
     const index = this.paymentIdToBip44Index(paymentId);
-    const derivationPath = `m/44'/501'/${index}'/0'`;
+    const derivationPath = `m/44'/501'/${index}'/0'`; // Hardened path
     const derivedKey = derivePath(derivationPath, this.seed.toString('hex'));
     const keypair = Keypair.fromSeed(derivedKey.key.slice(0, 32));
     return keypair.publicKey.toBase58();
