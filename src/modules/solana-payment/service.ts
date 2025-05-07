@@ -38,6 +38,7 @@ type CustomPaymentContext = {
 type SolanaPaymentOptions = {
   rpcUrl: string;
   passPhrase: string;
+  coldStorageWallet: string;
   currencyConverter?: {
     provider: 'default' | 'coingecko';
     apiKey?: string;
@@ -55,6 +56,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
     this.solanaClient = new SolanaClient({
       rpcUrl: this.options_.rpcUrl,
       mnemonic: this.options_.passPhrase,
+      coldStorageWallet: this.options_.coldStorageWallet,
       currencyConverter: {
         provider: this.options_.currencyConverter?.provider || 'default',
         apiKey: this.options_.currencyConverter?.apiKey
@@ -216,16 +218,30 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
       const paymentDetails = data as unknown as PaymentDetails;
       
-      // For Solana payments, capture is essentially just marking the payment as captured
-      // since the funds are already in our wallet once authorized
-      
-      this.logger_.info(`Payment captured: ${paymentDetails.id}`);
-      
+      // Mark payment as captured
       const updatedData = {
         ...paymentDetails,
         status: 'captured' as const,
         updated_at: new Date(),
       };
+      
+      this.logger_.info(`Payment captured: ${paymentDetails.id}`);
+      
+      // Transfer funds to cold storage wallet
+      try {
+        const txSignature = await this.solanaClient.transferToColdStorage(paymentDetails.id);
+        this.logger_.info(`Funds transferred to cold storage: ${txSignature}`);
+      } catch (error) {
+        this.logger_.error(`Error transferring funds to cold storage: ${error}`);
+        // Notify admin about the failure
+        // this.notifyAdmin({
+        //   type: 'cold_storage_transfer_failed',
+        //   paymentId: paymentDetails.id,
+        //   error: error instanceof Error ? error.message : 'Unknown error'
+        // });
+        // We still consider the payment captured even if the transfer fails
+        // since the funds are in our one-time wallet
+      }
       
       return {
         data: updatedData,

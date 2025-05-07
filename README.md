@@ -59,23 +59,37 @@ If you don't know what a mnemonic prhase is, or how to generate one you can use 
 
 ### Scheduled Job Setup
 
-To monitor payments, create a file `src/jobs/check-payments.ts` with:
+To monitor payments, create a file `src/jobs/check-payments.ts` with the following content:
 
 ```typescript
 import { checkPaymentsJob } from 'medusa-payment-solana'
 
+// Export the job function
 export default checkPaymentsJob
 
+// Configure the job schedule
 export const config = {
   name: "check-solana-payments",
   schedule: "*/5 * * * *", // Runs every 5 minutes
 }
 ```
 
-This job will:
-- Check for pending Solana payments
-- Update payment status based on blockchain transactions
-- Automatically authorize and capture successful payments
+This scheduled job will:
+1. Check for pending Solana payments
+2. Verify transactions on the Solana blockchain
+3. Automatically authorize and capture successful payments
+4. Place orders for completed payments
+5. Transfer funds to the cold storage wallet
+
+The job runs independently of the storefront, ensuring orders are processed even if:
+- The shopper leaves the website after payment
+- The browser session ends
+- The storefront experiences technical issues
+
+When a payment is successfully captured:
+- The order is automatically placed in Medusa
+- The shopper receives an order confirmation email (if configured)
+- Funds are transferred to the cold storage wallet
 
 ## Usage
 
@@ -101,11 +115,18 @@ When a customer reaches the checkout page, they will be able to select "Solana" 
 
 2. **Display Payment Details**: The storefront displays the Solana wallet address and the amount in SOL to be paid.
 
-3. **Monitor for Payment**: This must be done using a schduled job. Configure the  `import { checkPaymentsJob } from 'medusa-payment-solana'` periodically checks the blockchain for incoming transactions to the specified wallet address.
+3. **Monitor for Payment**: This must be done using a scheduled job. Configure the `import { checkPaymentsJob } from 'medusa-payment-solana'` to periodically check the blockchain for incoming transactions to the specified wallet address.
 
 4. **Authorize Payment**: Once a matching payment is detected, the payment is authorized.
 
-5. **Capture Payment**: The payment is captured immediately when the payment is authorized - solana does not authorize payment, it is a transactional transaction.
+5. **Capture Payment**: The payment is captured immediately when the payment is authorized. The funds are then transferred to the cold storage wallet.
+
+6. **Cold Storage Transfer**: After capture, the funds are transferred from the one-time wallet to the configured cold storage wallet. The one-time wallet is emptied and will be closed automatically by the Solana network when its balance reaches zero.
+
+### Error Handling
+- If the cold storage transfer fails, the payment is still marked as captured since the funds are safely in the one-time wallet
+- Transfer failures are logged and can be monitored for manual intervention
+- The system ensures customers receive their orders even if internal transfers encounter issues
 
 
 ### Currency Conversion
