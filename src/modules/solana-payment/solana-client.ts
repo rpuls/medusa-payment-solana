@@ -79,7 +79,15 @@ export class SolanaClient {
     );
     dummyTx.feePayer = oneTimeKeypair.publicKey;
 
-    const fee = Number(await this.connection.getFeeForMessage(dummyTx.compileMessage()));
+    const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
+    dummyTx.recentBlockhash = blockhash;
+    const message = dummyTx.compileMessage();
+    
+    const feeInfo = await this.connection.getFeeForMessage(message);
+    const fee = feeInfo.value;
+    if (typeof fee !== 'number' || isNaN(fee)) {
+      throw new Error('Failed to estimate transaction fee: ' + JSON.stringify(feeInfo));
+    }
     const transferAmount = numericBalance - fee;
 
     if (transferAmount <= 0) {
@@ -87,7 +95,9 @@ export class SolanaClient {
     }
 
     // Create and send actual transaction
-    const tx = new Transaction().add(
+    const tx = new Transaction();
+    tx.recentBlockhash = blockhash;
+    tx.add(
       SystemProgram.transfer({
         fromPubkey: oneTimeKeypair.publicKey,
         toPubkey: this.coldStorageWallet,
@@ -95,8 +105,11 @@ export class SolanaClient {
       })
     );
     tx.feePayer = oneTimeKeypair.publicKey;
-
+    
     try {
+      const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = blockhash;
+
       const signature = await sendAndConfirmTransaction(
         this.connection,
         tx,
@@ -104,8 +117,16 @@ export class SolanaClient {
       );
       return signature;
     } catch (error) {
-      console.error('Error transferring to cold storage:', error);
-      throw new Error('Failed to transfer funds to cold storage');
+      throw new Error('Error transferring to cold storage:' + JSON.stringify({
+        error: error,
+        paymentId: paymentId,
+        transaction: {
+          from: oneTimeKeypair.publicKey.toBase58(),
+          to: this.coldStorageWallet.toBase58(),
+          amount: transferAmount,
+          fee: fee
+        }
+      }));
     }
   }
 
