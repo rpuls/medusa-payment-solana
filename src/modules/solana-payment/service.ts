@@ -39,6 +39,7 @@ type SolanaPaymentOptions = {
   rpcUrl: string;
   passPhrase: string;
   coldStorageWallet: string;
+  sessionExpirationSeconds?: number;
   currencyConverter?: {
     provider: 'default' | 'coingecko';
     apiKey?: string;
@@ -100,7 +101,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   ): Promise<InitiatePaymentOutput> {
     try {
       const { amount, currency_code, context } = input;
-      
+      console.log('Initiating Solana payment with amount:', amount, 'and currency:', currency_code);
+      this.logger_.info('Initiating Solana payment with amount: ' + amount + ' and currency: ' + currency_code);
       // Generate a unique payment ID
       const paymentId = generatePaymentId();
       
@@ -110,6 +112,11 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       
   
       const solana_one_time_address = this.solanaClient.generateAddress(paymentId);
+      
+      // Calculate expiration timestamp based on configuration
+      const expirationSeconds = this.options_.sessionExpirationSeconds || 120;
+      const expirationDate = new Date();
+      expirationDate.setSeconds(expirationDate.getSeconds() + expirationSeconds);
       
       // Create payment details
       const paymentDetails: PaymentDetails = {
@@ -121,6 +128,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         status: 'pending',
         created_at: new Date(),
         updated_at: new Date(),
+        expiration_date: expirationDate
       };
       
       this.logger_.info('Created payment details:' + JSON.stringify(paymentDetails));
@@ -151,6 +159,39 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   }
 
   /**
+   * Check if payment session is expired and renew price if necessary
+   */
+  async renewPayment(paymentDetails: PaymentDetails): Promise<PaymentDetails> {
+    // Check if session has expired based on created_at and expiration configuration
+    const expirationSeconds = this.options_.sessionExpirationSeconds || 120;
+    const expirationTime = new Date(paymentDetails.created_at);
+    expirationTime.setSeconds(expirationTime.getSeconds() + expirationSeconds);
+    
+    if (new Date() > expirationTime) {
+      this.logger_.info(`Session expired, updating price for payment: ${paymentDetails.id}`);
+      // Update the price to current conversion rate
+      const newSolAmount = await this.solanaClient.convertToSol(paymentDetails.amount, paymentDetails.currency_code);
+      this.logger_.info(`Updated price for ${paymentDetails.id} from ${paymentDetails.sol_amount} SOL to ${newSolAmount} SOL`);
+      
+      // Calculate new expiration timestamp
+      const newExpirationDate = new Date();
+      newExpirationDate.setSeconds(newExpirationDate.getSeconds() + expirationSeconds);
+      
+      const updatedDetails = {
+        ...paymentDetails,
+        sol_amount: newSolAmount,
+        updated_at: new Date(),
+        expiration_date: newExpirationDate
+      };
+      
+      // TODO: Update the payment details in the database if necessary
+      return updatedDetails;
+    }
+    
+    return paymentDetails;
+  }
+
+  /**
    * Authorize a payment
    */
   async authorizePayment(
@@ -165,7 +206,10 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         );
       }
       
-      const paymentDetails = data as unknown as PaymentDetails;
+      let paymentDetails = data as unknown as PaymentDetails;
+      
+      // Renew payment details if expired
+      paymentDetails = await this.renewPayment(paymentDetails);
       
       // Check if payment has been received
       const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
@@ -330,6 +374,8 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
 
   /**
  * Get the status of a payment
+ * This function is mainely used by webhook based payment modules, but is required by medusa core. 
+ * It is UNCLEAR what data structure it is called with when called by medusa. Beware!
  */
 async getPaymentStatus(
   input: GetPaymentStatusInput
@@ -345,7 +391,6 @@ async getPaymentStatus(
     }
     
     const paymentDetails = data as PaymentDetails;
-    
     // If payment is already in a final state, return that state
     if (paymentDetails.status === 'captured') {
       return { status: 'captured' };
@@ -355,19 +400,7 @@ async getPaymentStatus(
       return { status: 'requires_more' };
     }
     
-    // Check if payment has been received
-    const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
-    
-    // Note: the payment is essentially captured already, but the medusa payment flow requires authorization before capturing.
-    if (isPaymentReceived) {
-      return { 
-        status: 'authorized',
-        data: { 
-          ...paymentDetails,
-          verified_at: new Date().toISOString() 
-        }
-      };
-    }
+    // Note: the payment is never "authorized" in Solana, it is either pending or captured
     
     // Payment not yet received
     return { 

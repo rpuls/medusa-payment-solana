@@ -1,8 +1,7 @@
 import { MedusaError } from '@medusajs/framework/utils'
 import { MedusaContainer } from '@medusajs/framework/types'
 import { Modules } from '@medusajs/framework/utils'
-import { capturePaymentWorkflow } from '@medusajs/medusa/core-flows'
-import { completeCartWorkflow } from '@medusajs/medusa/core-flows'
+import { capturePaymentWorkflow, completeCartWorkflow } from '@medusajs/medusa/core-flows'
 
 export default async function checkPaymentsJob(container: MedusaContainer) {
   const logger = container.resolve('logger')

@@ -33,6 +33,7 @@ export type PaymentDetails = {
   status: PaymentSessionStatus;
   created_at: Date;
   updated_at: Date;
+  expiration_date?: Date;
 };
 
 export class SolanaClient {
@@ -149,6 +150,8 @@ export class SolanaClient {
   }
 
   async checkPayment(paymentDetails: PaymentDetails): Promise<boolean> {
+    // console.log('Simulation accepted payment for:', JSON.stringify(paymentDetails, null, 2));
+    // return true;
     try {
       const paymentAddress = new PublicKey(paymentDetails.solana_one_time_address);
       

@@ -8,11 +8,11 @@ A payment provider for Medusa.js 2.0 that accepts Solana cryptocurrency payments
 - Convert cart totals from USD/EUR to SOL
 - Display wallet address for payment
 - Monitor the blockchain for payment confirmation
-- Support for payment authorization, capture, and refund workflows
+- Support for payment authorization and capture workflows
 
 ## Prerequisites
 
-- Medusa.js 2.0 or higher
+- Medusa.js 2.0 project (find our recommended template here: [MedusaJS 2.0 Template](https://funkyton.com/medusajs-2-0-is-finally-here/))
 - Node.js 16 or higher
 - A Solana wallet address
 
