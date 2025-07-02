@@ -29,11 +29,17 @@ export type PaymentDetails = {
   amount: number;
   currency_code: string;
   sol_amount: number;
+  received_sol_amount?: number;
   solana_one_time_address: string;
   status: PaymentSessionStatus;
   created_at: Date;
   updated_at: Date;
   expiration_date?: Date;
+};
+
+export type PaymentVerificationResult = {
+  receivedAmount: number; // in SOL
+  lastTransactionTime: Date | null;
 };
 
 export class SolanaClient {
@@ -149,7 +155,7 @@ export class SolanaClient {
     return keypair.publicKey.toBase58();
   }
 
-  async checkPayment(paymentDetails: PaymentDetails): Promise<boolean> {
+  async checkPayment(paymentDetails: PaymentDetails): Promise<PaymentVerificationResult> {
     // console.log('Simulation accepted payment for:', JSON.stringify(paymentDetails, null, 2));
     // return true;
     try {
@@ -157,44 +163,54 @@ export class SolanaClient {
       
       const signatures = await this.connection.getSignaturesForAddress(
         paymentAddress,
-        { limit: 20 }
+        { limit: 50 } // Increased limit to check more transactions if needed
       );
-
+  
       const createdAtDate = paymentDetails.created_at instanceof Date
         ? paymentDetails.created_at
         : new Date(paymentDetails.created_at);
-
-      const relevantSignatures = signatures.filter((sig) => {
-        if (!sig.blockTime) return false;
+  
+      let totalLamportsReceived = 0;
+      let lastTransactionTime: Date | null = null;
+  
+      // Sort signatures by blockTime descending to find the last transaction first
+      const sortedSignatures = signatures.sort((a, b) => (b.blockTime || 0) - (a.blockTime || 0));
+  
+      for (const sig of sortedSignatures) {
+        if (!sig.blockTime) continue;
+        
         const blockTimeDate = new Date(sig.blockTime * 1000);
-        return blockTimeDate > createdAtDate;
-      });
-      
-      for (const sig of relevantSignatures) {
-        const tx = await this.connection.getParsedTransaction(sig.signature, { commitment: 'confirmed' });
-        if (!tx || !tx.meta) continue;
+        
+        // Find the most recent transaction time
+        if (!lastTransactionTime) {
+          lastTransactionTime = blockTimeDate;
+        }
 
+        const tx = await this.connection.getParsedTransaction(sig.signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 });
+        if (!tx || !tx.meta) continue;
+  
         for (const ix of tx.transaction.message.instructions) {
           if (
             'program' in ix &&
             ix.program === 'system' &&
-            ix.parsed?.type === 'transfer'
+            ix.parsed?.type === 'transfer' &&
+            ix.parsed.info.destination === paymentAddress.toBase58()
           ) {
-            const info = ix.parsed.info;
-            if (
-              info.destination === paymentAddress.toBase58() &&
-              Number(info.lamports) === paymentDetails.sol_amount * LAMPORTS_PER_SOL
-            ) {
-              return true;
-            }
+            totalLamportsReceived += ix.parsed.info.lamports;
           }
         }
       }
-
-      return false;
+  
+      return {
+        receivedAmount: totalLamportsReceived / LAMPORTS_PER_SOL,
+        lastTransactionTime: lastTransactionTime,
+      };
     } catch (error) {
       console.error('Error checking payment:', error);
-      return false;
+      return {
+        receivedAmount: 0,
+        lastTransactionTime: null,
+      };
     }
   }
 }

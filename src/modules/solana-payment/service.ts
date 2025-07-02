@@ -114,7 +114,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
       const solana_one_time_address = this.solanaClient.generateAddress(paymentId);
       
       // Calculate expiration timestamp based on configuration
-      const expirationSeconds = this.options_.sessionExpirationSeconds || 120;
+      const expirationSeconds = this.options_.sessionExpirationSeconds || 60 * 5; // Default to 5 minutes if not set
       const expirationDate = new Date();
       expirationDate.setSeconds(expirationDate.getSeconds() + expirationSeconds);
       
@@ -124,6 +124,7 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         amount: Number(amount),
         currency_code,
         sol_amount: solAmount,
+        received_sol_amount: 0,
         solana_one_time_address,
         status: 'pending',
         created_at: new Date(),
@@ -159,36 +160,29 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   }
 
   /**
-   * Check if payment session is expired and renew price if necessary
+   * Renews the payment details with a new price and expiration date.
    */
   async renewPayment(paymentDetails: PaymentDetails): Promise<PaymentDetails> {
-    // Check if session has expired based on created_at and expiration configuration
-    const expirationSeconds = this.options_.sessionExpirationSeconds || 120;
-    const expirationTime = new Date(paymentDetails.created_at);
-    expirationTime.setSeconds(expirationTime.getSeconds() + expirationSeconds);
+    this.logger_.info(`Renewing payment session: ${paymentDetails.id}`);
     
-    if (new Date() > expirationTime) {
-      this.logger_.info(`Session expired, updating price for payment: ${paymentDetails.id}`);
-      // Update the price to current conversion rate
-      const newSolAmount = await this.solanaClient.convertToSol(paymentDetails.amount, paymentDetails.currency_code);
-      this.logger_.info(`Updated price for ${paymentDetails.id} from ${paymentDetails.sol_amount} SOL to ${newSolAmount} SOL`);
-      
-      // Calculate new expiration timestamp
-      const newExpirationDate = new Date();
-      newExpirationDate.setSeconds(newExpirationDate.getSeconds() + expirationSeconds);
-      
-      const updatedDetails = {
-        ...paymentDetails,
-        sol_amount: newSolAmount,
-        updated_at: new Date(),
-        expiration_date: newExpirationDate
-      };
-      
-      // TODO: Update the payment details in the database if necessary
-      return updatedDetails;
-    }
+    // Update the price to the current conversion rate
+    const newSolAmount = await this.solanaClient.convertToSol(paymentDetails.amount, paymentDetails.currency_code);
+    this.logger_.info(`Updated price for ${paymentDetails.id} from ${paymentDetails.sol_amount} SOL to ${newSolAmount} SOL`);
     
-    return paymentDetails;
+    // Calculate a new expiration timestamp
+    const expirationSeconds = this.options_.sessionExpirationSeconds || 60 * 5; // Default to 5 minutes
+    const newExpirationDate = new Date();
+    newExpirationDate.setSeconds(newExpirationDate.getSeconds() + expirationSeconds);
+    
+    const updatedDetails: PaymentDetails = {
+      ...paymentDetails,
+      sol_amount: newSolAmount,
+      updated_at: new Date(),
+      expiration_date: newExpirationDate,
+      status: 'pending' // Reset status to pending
+    };
+    
+    return updatedDetails;
   }
 
   /**
@@ -206,38 +200,71 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
         );
       }
       
-      let paymentDetails = data as unknown as PaymentDetails;
+      const initialPaymentDetails = data as unknown as PaymentDetails;
       
-      // Renew payment details if expired
-      paymentDetails = await this.renewPayment(paymentDetails);
+      // 1. Get blockchain data
+      const { receivedAmount, lastTransactionTime } = await this.solanaClient.checkPayment(initialPaymentDetails);
       
-      // Check if payment has been received
-      const isPaymentReceived = await this.solanaClient.checkPayment(paymentDetails);
+      // Create a new object with the updated received amount
+      const paymentDetails: PaymentDetails = {
+        ...initialPaymentDetails,
+        received_sol_amount: receivedAmount,
+      };
       
-      if (isPaymentReceived) {
-        this.logger_.info(`Payment authorized: ${paymentDetails.id}`);
-        
-        // Update payment status
-        const updatedData = {
-          ...paymentDetails,
-          status: 'authorized' as const,
-          updated_at: new Date(),
-        };
-        
+      const expirationDate = paymentDetails.expiration_date ? new Date(paymentDetails.expiration_date) : new Date(0);
+      const isExpired = new Date() > expirationDate;
+      
+      // Scenario A: Session is NOT expired
+      if (!isExpired) {
+        if (receivedAmount >= paymentDetails.sol_amount) {
+          this.logger_.info(`Payment authorized (on time): ${paymentDetails.id}`);
+          return {
+            status: 'authorized',
+            data: { ...paymentDetails, status: 'authorized', updated_at: new Date() },
+          };
+        }
+        // Not enough paid yet, still pending
+        return { status: 'pending', data: { ...paymentDetails, updated_at: new Date() } };
+      }
+      
+      // Scenario B: Session IS expired
+      this.logger_.info(`Payment session expired: ${paymentDetails.id}. Checking payment conditions...`);
+      
+      // Case B1: User paid on time, but check happens later than expiration time
+      const paidOnTime = lastTransactionTime && lastTransactionTime <= expirationDate && receivedAmount >= paymentDetails.sol_amount;
+      if (paidOnTime) {
+        this.logger_.info(`Payment authorized (late confirmation, paid on time): ${paymentDetails.id}`);
         return {
           status: 'authorized',
-          data: updatedData,
+          data: { ...paymentDetails, status: 'authorized', updated_at: new Date() },
         };
       }
       
-      // Payment not received yet
+      // Case B2: User paid late or underpaid. Renew the price and check against it.
+      const newSolAmount = await this.solanaClient.convertToSol(paymentDetails.amount, paymentDetails.currency_code);
+      
+      if (receivedAmount >= newSolAmount) {
+        this.logger_.info(`Payment authorized (paid late, but covered new price): ${paymentDetails.id}`);
+        return {
+          status: 'authorized',
+          data: { ...paymentDetails, status: 'authorized', updated_at: new Date() },
+        };
+      }
+      
+      // If none of the above, renew the session with new price and expiration
+      const renewedDetails = await this.renewPayment(paymentDetails);
+      const finalDetails = {
+        ...renewedDetails,
+        received_sol_amount: receivedAmount, // carry over the received amount
+      };
+      
+      this.logger_.info(`Payment session renewed with new price: ${finalDetails.sol_amount} SOL. Still pending.`);
+      
       return {
         status: 'pending',
-        data: {
-          ...paymentDetails,
-          updated_at: new Date(),
-        },
+        data: finalDetails,
       };
+      
     } catch (error) {
       this.logger_.error(`Error authorizing Solana payment: ${error}`);
       throw error;
