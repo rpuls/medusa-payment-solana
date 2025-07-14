@@ -156,8 +156,6 @@ export class SolanaClient {
   }
 
   async checkPayment(paymentDetails: PaymentDetails): Promise<PaymentVerificationResult> {
-    // console.log('Simulation accepted payment for:', JSON.stringify(paymentDetails, null, 2));
-    // return true;
     try {
       const paymentAddress = new PublicKey(paymentDetails.solana_one_time_address);
       
@@ -206,11 +204,7 @@ export class SolanaClient {
         lastTransactionTime: lastTransactionTime,
       };
     } catch (error) {
-      console.error('Error checking payment:', error);
-      return {
-        receivedAmount: 0,
-        lastTransactionTime: null,
-      };
+      throw new Error(`Error checking payment: ${error}`);
     }
   }
 }

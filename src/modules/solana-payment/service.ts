@@ -101,7 +101,6 @@ class SolanaPaymentProviderService extends AbstractPaymentProvider<SolanaPayment
   ): Promise<InitiatePaymentOutput> {
     try {
       const { amount, currency_code, context } = input;
-      console.log('Initiating Solana payment with amount:', amount, 'and currency:', currency_code);
       this.logger_.info('Initiating Solana payment with amount: ' + amount + ' and currency: ' + currency_code);
       // Generate a unique payment ID
       const paymentId = generatePaymentId();

@@ -14,18 +14,22 @@ A payment provider for Medusa.js 2.0 that accepts Solana cryptocurrency payments
 ## Prerequisites
 
 - Medusa.js 2.0 project (find our recommended template here: [MedusaJS 2.0 Template](https://funkyton.com/medusajs-2-0-is-finally-here/))
-- Node.js 16 or higher
+- Node.js 22 or higher
 - A Solana wallet address for cold storage and a mnemonic phrase for deriving payment addresses.
 
 ## Installation
 
-```bash
-npm install medusa-payment-solana
-```
+1.  **Install the Package**:
+    ```bash
+    npm install medusa-payment-solana
+    ```
+2.  **Place the Module**:
+    This module is a local plugin and should be placed in the `src/modules` directory of your Medusa backend.
 
 ## Configuration
 
-Add the module to your `medusa-config.js`. The available options are:
+1.  **Update `medusa-config.js`**:
+    Add the module to your `medusa-config.js`. The available options are:
 
 | Option                     | Type     | Description                                                                                             | Required |
 | -------------------------- | -------- | ------------------------------------------------------------------------------------------------------- | -------- |
@@ -67,12 +71,15 @@ module.exports = defineConfig({
 });
 ```
 
-Make sure to set the `SOLANA_MNEMONIC` environment variable in your `.env` file:
-
-```
-SOLANA_MNEMONIC="word word word word word word word word word word word word"
-```
-If you don't know what a mnemonic prhase is, or how to generate one you can use script `node scripts/generatePassPhrase.js` to get one. (DONT SHARE WITH ANYONE)
+2.  **Update `.env`**:
+    Add the following environment variables to your Medusa backend's `.env` file:
+    ```
+    SOLANA_MNEMONIC="your 12 or 24-word mnemonic phrase"
+    SOLANA_COLD_STORAGE_WALLET="your solana cold storage wallet address"
+    # Add this if you are using the CoinGecko currency converter
+    COINGECKO_API_KEY="your coingecko api key"
+    ```
+    You can generate a new mnemonic phrase by running the `node scripts/generatePassPhrase.js` script from the `medusa-payment-solana` module's directory. **Do not share your mnemonic phrase with anyone.**
 
 ## Scheduled Job Setup
 
@@ -230,3 +237,13 @@ if (solanaPaymentSession.status === 'authorized' || solanaPaymentSession.status 
 ## License
 
 MIT
+
+<p align="center">
+  <a href="https://funkyton.com/">
+    <div style="text-align: center;">
+      <picture>
+        <img alt="FUNKYTON logo" src="https://res-5.cloudinary.com/hczpmiapo/image/upload/q_auto/v1/ghost-blog-images/funkyton-logo.png" width=200>
+      </picture>
+    </div>
+  </a>
+</p>
