@@ -2,6 +2,8 @@
 
 A payment provider for Medusa.js 2.0 that accepts Solana cryptocurrency payments, with built-in protection against price volatility through payment session expiration, and real-time currency conversion via external API.
 
+OBS: This is a beta version!
+
 ## Features
 
 - Accept Solana (SOL) cryptocurrency payments in your Medusa store.
@@ -23,24 +25,12 @@ A payment provider for Medusa.js 2.0 that accepts Solana cryptocurrency payments
     ```bash
     npm install medusa-payment-solana
     ```
-2.  **Place the Module**:
-    This module is a local plugin and should be placed in the `src/modules` directory of your Medusa backend.
 
 ## Configuration
 
 1.  **Update `medusa-config.js`**:
-    Add the module to your `medusa-config.js`. The available options are:
 
-| Option                     | Type     | Description                                                                                             | Required |
-| -------------------------- | -------- | ------------------------------------------------------------------------------------------------------- | -------- |
-| `passPhrase`               | `string` | Your 12 or 24-word BIP39 mnemonic phrase. Used to generate unique, one-time payment addresses.           | **Yes**  |
-| `coldStorageWallet`        | `string` | The public key of the wallet where funds will be transferred after a payment is captured.                 | **Yes**  |
-| `rpcUrl`                   | `string` | The URL of the Solana RPC endpoint. Defaults to Solana's public testnet. Use a mainnet RPC for production. | No       |
-| `sessionExpirationSeconds` | `number` | The time in seconds a payment session is valid before the price is renewed. Defaults to `300` (5 minutes). | No       |
-| `currencyConverter`        | `object` | Configuration for currency conversion. See [Currency Conversion](#currency-conversion).                   | No       |
-
-**Example `medusa-config.js`:**
-
+##### Example
 ```javascript
 module.exports = defineConfig({
   // ...
@@ -70,6 +60,18 @@ module.exports = defineConfig({
   ]
 });
 ```
+
+
+##### The available options are:
+
+| Option                     | Type     | Description                                                                                             | Required |
+| -------------------------- | -------- | ------------------------------------------------------------------------------------------------------- | -------- |
+| `passPhrase`               | `string` | Your 12 or 24-word BIP39 mnemonic phrase. Used to generate unique, one-time payment addresses.           | **Yes**  |
+| `coldStorageWallet`        | `string` | The public key of the wallet where funds will be transferred after a payment is captured.                | **Yes**  |
+| `rpcUrl`                   | `string` | Use; Devenet: https://api.devnet.solana.com or Mainnet: https://api.mainnet-beta.solana.com See: https://solana.com/docs/references/clusters for more info.            | **Yes**       |
+| `sessionExpirationSeconds` | `number` | The time in seconds a payment session is valid before the price is renewed. Defaults to `300` (5 minutes). | No       |
+| `currencyConverter`        | `object` | Configuration for currency conversion. See [Currency Conversion](#currency-conversion).                   | No       |
+
 
 2.  **Update `.env`**:
     Add the following environment variables to your Medusa backend's `.env` file:
@@ -210,6 +212,7 @@ const remainingAmount = Math.max(0, sol_amount - received_sol_amount);
 // 2. Create the payment URL for the QR code
 //    The URL should only request the *remaining* amount.
 const paymentUrl = `solana:${solana_one_time_address}?amount=${remainingAmount.toFixed(9)}`;
+// OBS: Many wallets no longer support QR code with parameters. Alternatively, render QR code from: solana_one_time_address 
 
 // 3. Render the UI
 //    - Display total price (sol_amount), amount paid (received_sol_amount), and remaining amount.
@@ -233,6 +236,16 @@ if (solanaPaymentSession.status === 'authorized' || solanaPaymentSession.status 
   await placeOrder(); 
 }
 ```
+
+## Disclaimer
+
+This Solana payment module is (or will be) provided as free, open-source software, with no warranties, guarantees, or liability of any kind. Use it at your own risk.
+I/we do not charge for this module, nor do I/we offer insurance, customer support, or any guarantees against software bugs, user mistakes, or lost funds.
+Always test thoroughly on testnet before using it with real funds, and make sure you understand how blockchain payments work.
+
+It is your responsibility to ensure that your use of this software complies with all applicable laws and regulations in your country or jurisdiction, including but not limited to anti-money laundering (AML) and cryptocurrency regulations. I/we are not liable for any legal issues, penalties, or consequences resulting from the use or misuse of this software.
+
+By using this module, you accept full responsibility for any transactions, losses, errors, or legal issues that may occur.
 
 ## License
 
