@@ -93,10 +93,10 @@ import { checkPaymentsJob } from 'medusa-payment-solana';
 // Export the job function
 export default checkPaymentsJob;
 
-// Configure the job schedule (e.g., every 5 minutes)
+// Configure the job schedule (Recommended, every minute)
 export const config = {
   name: "check-solana-payments",
-  schedule: "*/5 * * * *",
+  schedule: "*/1 * * * *",
 };
 ```
 

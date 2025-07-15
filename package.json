@@ -1,8 +1,16 @@
 {
   "name": "medusa-payment-solana",
-  "author": "Rasmus Puls",
-  "version": "0.2.1",
+  "author": {
+    "name": "Rasmus Puls",
+    "url": "https://funkyton.com/"
+  },
+  "homepage": "https://funkyton.com/medusa-payment-solana-preview/",
+  "version": "0.2.2",
   "description": "Solana crypto currency payment provider for MedusaJS 2.0",
+    "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rpuls/medusa-payment-solana.git"
+  },
   "main": "src/index.ts",
   "files": [
     "dist"
