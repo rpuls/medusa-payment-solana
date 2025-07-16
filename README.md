@@ -15,7 +15,7 @@ OBS: This is a beta version!
 
 ## Prerequisites
 
-- Medusa.js 2.0 project (find our recommended template here: [MedusaJS 2.0 Template](https://funkyton.com/medusajs-2-0-is-finally-here/))
+- Medusa.js 2.0 project (find our recommended template here: [MedusaJS 2.0 Template](https://funkyton.com/medusajs-2-0-is-finally-here/#medusajs-20-railway-one-click-deploy-template))
 - Node.js 22 or higher
 - A Solana wallet address for cold storage and a mnemonic phrase for deriving payment addresses.
 
