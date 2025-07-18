@@ -1,4 +1,4 @@
-import SolanaPaymentProvider from './modules/solana-payment';
+import SolanaPaymentProvider from './providers/solana-payment';
 import checkPaymentsJob from './jobs/check-payment';
 
 export { SolanaPaymentProvider, checkPaymentsJob }
