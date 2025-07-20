@@ -4,6 +4,10 @@ A payment provider for Medusa.js 2.0 that accepts Solana cryptocurrency payments
 
 OBS: This is a beta version!
 
+## 📋 Project Board
+
+Check out the [Project Board](https://github.com/users/rpuls/projects/2) for a list of tasks and progress!
+
 ## Features
 
 - Accept Solana (SOL) cryptocurrency payments in your Medusa store.

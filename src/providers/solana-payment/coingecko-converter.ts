@@ -37,7 +37,7 @@ export class CoinGeckoConverter implements CurrencyConverter {
         throw new Error(`CoinGecko API error: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data: any = await response.json();
       const rate = data.solana?.[currencyCode.toLowerCase()];
 
       if (!rate) {

@@ -22,9 +22,9 @@ import {
   ProviderWebhookPayload,
   WebhookActionResult
 } from '@medusajs/framework/types';
-import { SolanaPaymentError } from './errors';
-import SolanaClient, { PaymentDetails } from './solana-client';
-import { generatePaymentId, createPaymentDescription } from './utils';
+import { SolanaPaymentError } from './providers/solana-payment/errors';
+import SolanaClient, { PaymentDetails } from './providers/solana-payment/solana-client';
+import { generatePaymentId, createPaymentDescription } from './providers/solana-payment/utils';
 
 // Extend PaymentSessionStatus to include 'refunded'
 // type ExtendedPaymentSessionStatus = PaymentSessionStatus | 'refunded';
@@ -486,15 +486,6 @@ async getPaymentStatus(
       // Convert the new amount to SOL
       const solAmount = await this.solanaClient.convertToSol(Number(amount), currency_code);
       
-      // Update payment details
-      const updatedData = {
-        ...paymentDetails,
-        amount: Number(amount),
-        currency_code,
-        sol_amount: solAmount,
-        updated_at: new Date(),
-      };
-      
       // Create a new description for the payment
       const customContext = context as CustomPaymentContext;
       const description = createPaymentDescription(
@@ -503,6 +494,16 @@ async getPaymentStatus(
         currency_code,
         solAmount
       );
+
+      // Update payment details
+      const updatedData = {
+        ...paymentDetails,
+        amount: Number(amount),
+        currency_code,
+        sol_amount: solAmount,
+        updated_at: new Date(),
+        description,
+      };
       
       this.logger_.info(`Payment updated: ${paymentDetails.id} to ${solAmount} SOL`);
       

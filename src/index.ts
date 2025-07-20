@@ -1,6 +1,9 @@
-import SolanaPaymentProvider from './providers/solana-payment';
+import { ModuleProvider, Modules } from "@medusajs/framework/utils";
+import SolanaPaymentProviderService from "./service";
 import checkPaymentsJob from './jobs/check-payment';
 
-export { SolanaPaymentProvider, checkPaymentsJob }
+export { checkPaymentsJob };
 
-export default SolanaPaymentProvider;
+export default ModuleProvider(Modules.PAYMENT, {
+  services: [SolanaPaymentProviderService],
+});

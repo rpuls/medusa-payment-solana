@@ -164,10 +164,6 @@ export class SolanaClient {
         { limit: 50 } // Increased limit to check more transactions if needed
       );
   
-      const createdAtDate = paymentDetails.created_at instanceof Date
-        ? paymentDetails.created_at
-        : new Date(paymentDetails.created_at);
-  
       let totalLamportsReceived = 0;
       let lastTransactionTime: Date | null = null;
   

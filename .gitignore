@@ -1,4 +1,8 @@
 node_modules
 dist
-
+coverage
 .medusa
+
+
+temp_stripe
+payment-stripe
