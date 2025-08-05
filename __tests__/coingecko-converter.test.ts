@@ -1,4 +1,4 @@
-import { CoinGeckoConverter } from '../src/modules/solana-payment/coingecko-converter';
+import { CoinGeckoConverter } from '../src/providers/solana-payment/coingecko-converter';
 
 global.fetch = jest.fn();
 

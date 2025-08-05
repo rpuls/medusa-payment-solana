@@ -1,28 +1,35 @@
-import SolanaPaymentService from '../src/modules/solana-payment/service';
+import SolanaPaymentService from '../src/service';
 import { mock, MockProxy } from 'jest-mock-extended';
 import { Logger } from "@medusajs/types";
 import { PaymentSessionStatus } from "@medusajs/utils";
-import SolanaClient from '../src/modules/solana-payment/solana-client';
+import SolanaClient from '../src/providers/solana-payment/solana-client';
+
+jest.mock('@medusajs/framework/utils', () => ({
+  AbstractPaymentProvider: class AbstractPaymentProvider {},
+}));
+
+jest.mock('@medusajs/utils', () => ({
+    PaymentSessionStatus: {
+        PENDING: 'pending',
+        AUTHORIZED: 'authorized',
+    }
+}));
 
 // Mock the SolanaClient
-jest.mock("../src/modules/solana-payment/solana-client", () => {
+jest.mock("../src/providers/solana-payment/solana-client", () => {
   return {
     __esModule: true,
     default: jest.fn().mockImplementation(() => ({
       getWalletAddress: jest.fn().mockReturnValue("2ZY3T9qbJuTyqdtLKhEZ5e6QYFm77mESyFVK1pgx99uk"),
       checkPayment: jest.fn().mockResolvedValue({ paid: false, totalAmount: 0 }),
       transferLamports: jest.fn().mockResolvedValue("some_signature"),
+      convertToSol: jest.fn().mockResolvedValue(0.5),
+      generateAddress: jest.fn().mockReturnValue('some_address'),
+      transferToColdStorage: jest.fn().mockResolvedValue('some_signature'),
     })),
   };
 });
 
-// Mock the CurrencyConverter
-jest.mock("../src/modules/solana-payment/currency-converter", () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => ({
-    convertToSol: jest.fn().mockResolvedValue(0.5), // 100 USD = 0.5 SOL
-  })),
-}));
 
 describe('SolanaPaymentService', () => {
   let solanaService: SolanaPaymentService;
@@ -90,7 +97,7 @@ describe('SolanaPaymentService', () => {
       },
       status: PaymentSessionStatus.PENDING,
     };
-    const context = {};
+    
 
     // Mock checkPayment to return that the payment was made
     (solanaService['solanaClient'].checkPayment as jest.Mock).mockResolvedValue({
@@ -116,8 +123,6 @@ describe('SolanaPaymentService', () => {
       },
       status: PaymentSessionStatus.AUTHORIZED,
     };
-
-    (solanaClient.transferToColdStorage as jest.Mock).mockResolvedValue('some_signature');
 
     const result = await solanaService.capturePayment({ data: paymentSession.data });
 

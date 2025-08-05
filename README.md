@@ -92,7 +92,7 @@ module.exports = defineConfig({
 To automatically monitor and process payments, you must set up a scheduled job. Create a file `backend/src/jobs/check-payments.ts` with the following content:
 
 ```typescript
-import { checkPaymentsJob } from 'medusa-payment-solana';
+import { checkPaymentsJob } from 'medusa-payment-solana/job';
 
 // Export the job function
 export default checkPaymentsJob;

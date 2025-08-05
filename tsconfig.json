@@ -22,6 +22,6 @@
     "skipLibCheck": true,
     "incremental": false
   },
-  "include": ["src"],
-  "exclude": ["dist", "node_modules", "**/__tests__"]
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"]
 }

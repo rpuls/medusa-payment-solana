@@ -1,4 +1,4 @@
-import { DefaultConverter } from '../src/modules/solana-payment/currency-converter';
+import { DefaultConverter } from '../src/providers/solana-payment/currency-converter';
 
 describe('DefaultConverter', () => {
   let converter: DefaultConverter;
