@@ -5,7 +5,7 @@
     "url": "https://funkyton.com/"
   },
   "homepage": "https://funkyton.com/medusa-payment-solana-preview/",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Solana crypto currency payment provider for MedusaJS 2.0",
   "repository": {
     "type": "git",
