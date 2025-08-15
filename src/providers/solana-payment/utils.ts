@@ -1,30 +1,32 @@
-/**
- * Generate a unique payment ID
- */
+import crypto from 'crypto';
+
 export function generatePaymentId(): string {
-  return `sol_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  return `pid_${crypto.randomBytes(16).toString('hex')}`;
 }
 
-/**
- * Format a SOL amount with appropriate precision
- */
-export function formatSolAmount(amount: number): string {
-  return amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 9,
-  });
-}
-
-/**
- * Create a payment description for display to the customer
- */
 export function createPaymentDescription(
   orderId: string,
   amount: number,
   currencyCode: string,
   solAmount: number
 ): string {
-  return `Payment for order ${orderId}: ${amount} ${currencyCode} (${formatSolAmount(
-    solAmount
-  )} SOL)`;
+  return `Payment for order ${orderId}: ${amount} ${currencyCode.toUpperCase()} (${solAmount} SOL)`;
+}
+
+/**
+ * Checks if a given string is a valid Solana address.
+ * A valid address is a base58 encoded string between 32 and 44 characters long.
+ * @param address The address to validate.
+ * @returns True if the address is a valid Solana address, false otherwise.
+ */
+export function isValidSolanaAddress(address: string): boolean {
+  if (!address || typeof address !== 'string') {
+    return false;
+  }
+  
+  // Regular expression to check for base58 characters.
+  const base58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
+  
+  // Check if the address contains only base58 characters and has a length between 32 and 44.
+  return base58Regex.test(address) && address.length >= 32 && address.length <= 44;
 }

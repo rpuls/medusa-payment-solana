@@ -13,6 +13,8 @@ import { mnemonicToSeedSync } from 'bip39';
 import crypto from 'crypto';
 import { CurrencyConverter, DefaultConverter } from './currency-converter';
 import { CoinGeckoConverter } from './coingecko-converter';
+import { isValidSolanaAddress } from './utils';
+import { SolanaPaymentError } from './errors';
 
 export type SolanaClientOptions = {
   rpcUrl: string;
@@ -50,6 +52,13 @@ export class SolanaClient {
   private seed: Buffer;
 
   constructor(options: SolanaClientOptions) {
+    if (!isValidSolanaAddress(options.coldStorageWallet)) {
+      throw new SolanaPaymentError(
+        SolanaPaymentError.Types.INVALID_DATA,
+        `Invalid cold storage wallet address provided: ${options.coldStorageWallet}. Please provide a valid base58 encoded Solana address.`
+      );
+    }
+
     this.connection = new Connection(options.rpcUrl, 'confirmed');
     this.mnemonic = options.mnemonic;
     this.seed = mnemonicToSeedSync(this.mnemonic);
