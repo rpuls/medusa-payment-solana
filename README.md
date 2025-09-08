@@ -1,5 +1,7 @@
 # Medusa Solana Payment Provider
 
+<img src="https://res-3.cloudinary.com/hczpmiapo/image/upload/q_auto/v1/ghost-blog-images/solana-payment-module-for-medusajs-open-source-defi-cover-jpg.jpg?_a=BAMAJafi0"/>
+
 A payment provider for Medusa.js 2.0 that accepts Solana cryptocurrency payments, with built-in protection against price volatility through payment session expiration, and real-time currency conversion via external API.
 
 OBS: This is a beta version!
@@ -22,6 +24,9 @@ Check out the [Project Board](https://github.com/users/rpuls/projects/2) for a l
 - Medusa.js 2.0 project (find our recommended template here: [MedusaJS 2.0 Template](https://funkyton.com/medusajs-2-0-is-finally-here/#medusajs-20-railway-one-click-deploy-template))
 - Node.js 22 or higher
 - A Solana wallet address for cold storage and a mnemonic phrase for deriving payment addresses.
+
+## Video setup instructions
+https://funkyton.com/medusa-payment-solana/
 
 ## Installation
 
@@ -73,7 +78,7 @@ module.exports = defineConfig({
 | `passPhrase`               | `string` | Your 12 or 24-word BIP39 mnemonic phrase. Used to generate unique, one-time payment addresses.           | **Yes**  |
 | `coldStorageWallet`        | `string` | The public key of the wallet where funds will be transferred after a payment is captured.                | **Yes**  |
 | `rpcUrl`                   | `string` | Use; Devenet: https://api.devnet.solana.com or Mainnet: https://api.mainnet-beta.solana.com See: https://solana.com/docs/references/clusters for more info.            | **Yes**       |
-| `sessionExpirationSeconds` | `number` | The time in seconds a payment session is valid before the price is renewed. Defaults to `300` (5 minutes). | No       |
+| `sessionExpirationSeconds` | `number` | The time in seconds a payment session is valid before the price is renewed. Defaults to `300` (5 minutes). Medusa scheduler does not support intervals lower than 1 minute. | No       |
 | `currencyConverter`        | `object` | Configuration for currency conversion. See [Currency Conversion](#currency-conversion).                   | No       |
 
 
